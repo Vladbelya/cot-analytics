@@ -27,7 +27,7 @@ st.markdown("""
     /* Hide Streamlit Defaults */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* header {visibility: hidden;} Removed so sidebar expand button works */
 
     .stApp {
         background-color: #0b0f19; /* Deep institutional blue-grey */
