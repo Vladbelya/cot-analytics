@@ -115,6 +115,21 @@ import streamlit as st
 
 def get_gemini_client():
     api_key = os.getenv("GEMINI_API_KEY")
+    
+    # Bulletproof fallback: manually read .env if dotenv failed
+    if not api_key:
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.startswith("GEMINI_API_KEY="):
+                            api_key = line.split("=", 1)[1].strip()
+                            os.environ["GEMINI_API_KEY"] = api_key
+                            break
+            except Exception:
+                pass
+
     if not api_key:
         try:
             api_key = st.secrets.get("GEMINI_API_KEY")
@@ -122,7 +137,7 @@ def get_gemini_client():
             pass
             
     if not api_key:
-        raise ValueError("API ключ GEMINI_API_KEY не найден в файле .env или Streamlit Secrets")
+        raise ValueError(f"API ключ GEMINI_API_KEY не найден в файле .env или Streamlit Secrets")
         
     return genai.Client(api_key=api_key)
 
