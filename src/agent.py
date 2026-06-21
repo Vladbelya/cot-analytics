@@ -244,14 +244,28 @@ def absorb_knowledge(new_text, source_name):
     save_knowledge_base(resp_text)
     return True
 
+DEFAULT_SOURCES = [
+    "https://fred.stlouisfed.org/",
+    "https://t.me/ClashReport",
+    "https://t.me/rnintel",
+    "https://t.me/AMK_Mapping",
+    "https://t.me/CIG_telegram",
+    "https://t.me/BellumActaNews",
+    "https://x.com/deitaone?s=21",
+    "https://x.com/financialjuice?s=21"
+]
+
 def load_tracked_sources():
     if os.path.exists(TRACKED_SOURCES_FILE):
         try:
             with open(TRACKED_SOURCES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                if not data:
+                    return DEFAULT_SOURCES.copy()
+                return data
         except:
-            return []
-    return []
+            return DEFAULT_SOURCES.copy()
+    return DEFAULT_SOURCES.copy()
 
 def save_tracked_sources(sources_list):
     os.makedirs(os.path.dirname(TRACKED_SOURCES_FILE), exist_ok=True)

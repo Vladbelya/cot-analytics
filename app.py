@@ -570,16 +570,17 @@ if app_mode == "🧠 ИИ-Агент Кот (Текст)":
                 save_tracked_sources(tracked_sources)
                 st.rerun()
                 
-    if tracked_sources:
-        for idx, src in enumerate(tracked_sources):
-            col1, col2 = st.columns([5, 1])
-            col1.code(src)
-            if col2.button("Удалить", key=f"del_src_{idx}"):
-                tracked_sources.remove(src)
-                save_tracked_sources(tracked_sources)
-                st.rerun()
-    else:
-        st.info("Нет отслеживаемых источников. Агент будет опираться только на свою базу и новости Yahoo Finance.")
+    with st.expander("Показать/скрыть текущие источники", expanded=False):
+        if tracked_sources:
+            for idx, src in enumerate(tracked_sources):
+                col1, col2 = st.columns([5, 1])
+                col1.code(src)
+                if col2.button("Удалить", key=f"del_src_{idx}"):
+                    tracked_sources.remove(src)
+                    save_tracked_sources(tracked_sources)
+                    st.rerun()
+        else:
+            st.info("Нет отслеживаемых источников. Агент будет опираться только на свою базу и новости Yahoo Finance.")
                 
     st.markdown("---")
     st.subheader("4. Аналитика и Репорты")
