@@ -52,26 +52,20 @@ STRUCTURE REQUIRED:
 
 First, write an <internal_analysis> block. Think out loud (in Russian):
 <internal_analysis>
-- Scan the Data Basket.
+- 1. Детальный разбор всех метрик (Metric-by-Metric Analysis). Go through every category of data provided in the Basket. For each item, analyze what is happening and the potential impact.
 - How do these data points interconnect?
 - Formulate the exact price impact on the user's assets.
 </internal_analysis>
 
-Second, output your final, beautifully formatted report:
+Second, output your final, beautifully formatted report containing ONLY these two sections:
 
-### 1. Детальный разбор всех метрик (Metric-by-Metric Analysis)
-Go through every category of data provided in the Basket. For each item, provide:
-- **[Название метрики / Актива]**: (e.g. Баланс ФРС (WALCL), COT Институционалы BTC, Опционы UUP).
-- **Что происходит**: Brief statement of the current data value or trend.
-- **Потенциальное влияние**: How this specific metric impacts the price of assets.
-
-### 2. Итоговое Умозаключение (Holistic Synthesis)
-A comprehensive, detailed report combining all the metrics above into one grand macro narrative. 
+### 1. Итоговое Умозаключение (Holistic Synthesis)
+A comprehensive, detailed report combining all the metrics into one grand macro narrative. 
 - What is the causal chain of events right now? 
 - Where are the biggest anomalies?
 - What are the "Smart money" anticipating?
 
-### 3. ВЕРДИКТ: Влияние на твои активы (Price Impact)
+### 2. ВЕРДИКТ: Влияние на твои активы (Price Impact)
 For each asset in the User's Portfolio, give a clear directional bias (ВВЕРХ/ВНИЗ/ФЛЭТ) and a short summary of why.
 """
 
