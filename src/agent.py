@@ -107,11 +107,24 @@ You MUST return your response strictly matching this JSON schema. Do not write a
 If any metric is missing from the Data Basket or has no data, just output "Данных нет или они в пределах нормы." for that key.
 """
 
+from dotenv import load_dotenv
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(env_path)
+
+import streamlit as st
+
 def get_gemini_client():
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("API ключ GEMINI_API_KEY не найден в файле .env")
-    return genai.Client()
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            pass
+            
+    if not api_key:
+        raise ValueError("API ключ GEMINI_API_KEY не найден в файле .env или Streamlit Secrets")
+        
+    return genai.Client(api_key=api_key)
 
 def fetch_url_text(url):
     try:
