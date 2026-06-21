@@ -808,10 +808,8 @@ st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
 # Update button
 if st.sidebar.button("🔄 Обновить базу данных", use_container_width=True):
     with st.sidebar.status("Обновление данных...", expanded=True) as status:
-        status.write("Скачивание данных ФРС, CFTC и котировок...")
+        status.write("Скачивание отчетов COT...")
         try:
-            from src.macro_data import fetch_fred_data
-            fetch_fred_data()
             results = update_all_data()
             import time
             success_count = sum(1 for v in results.values() if v)
