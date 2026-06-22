@@ -469,35 +469,23 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
 # --- Sidebar ---
 st.sidebar.title("⚡ Терминал Кот")
 
-app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "🧠 ИИ-Агент Кот (Текст)", "📈 Интерактивный Дашборд", "📖 Паспорт Терминала"])
+app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🎓 Обучение кота", "📅 Календарь событий", "📖 Паспорт Терминала"])
 
-if app_mode == "🧠 ИИ-Агент Кот (Текст)":
+if app_mode == "🎓 Обучение кота":
     from src.agent import (
         extract_text_from_pdf, 
         fetch_url_text, 
         absorb_knowledge, 
-        generate_holistic_report, 
         load_knowledge_base,
         analyze_single_source,
         load_tracked_sources,
         save_tracked_sources
     )
     
-    st.title("🧠 ИИ-Агент Кот (Аналитик)")
-    st.markdown("Агент отслеживает макро фон, новости и ваши активы. Он обучается на всех данных, которые вы ему даете, и формирует целостные репорты.")
+    st.title("🎓 Обучение ИИ-Агента Кота")
+    st.markdown("Здесь вы можете добавлять официальные источники, новостные каналы и отчеты, которые агент будет регулярно читать для составления макро-отчетов.")
     
-    # User Assets Input
-    st.subheader("1. Ваши активы")
-    asset_options = list(MARKETS.keys())
-    assets_input_list = st.multiselect(
-        "Выберите активы для отслеживания:", 
-        options=asset_options, 
-        default=["BTC", "S&P 500"]
-    )
-    assets_input = ", ".join(assets_input_list)
-    
-    st.markdown("---")
-    st.subheader("2. Обучение агента (Загрузка новых знаний)")
+    st.subheader("1. Обучение агента (Разовая загрузка знаний)")
     
     tab1, tab2, tab3 = st.tabs(["📄 PDF Отчет", "🔗 Ссылка (URL)", "📝 Текст"])
     
@@ -555,14 +543,14 @@ if app_mode == "🧠 ИИ-Агент Кот (Текст)":
                 st.warning("Текст пуст.")
                 
     st.markdown("---")
-    st.subheader("3. Постоянные источники (Real-time отслеживание)")
-    st.markdown("Агент будет **автоматически парсить эти ссылки каждый раз**, когда вы просите его сгенерировать финальный макро-отчет:")
+    st.subheader("2. Постоянные источники (Официальные каналы и отчеты)")
+    st.markdown("Агент будет **автоматически парсить эти источники каждый раз** при генерации дашборда и репортов:")
     
     tracked_sources = load_tracked_sources()
     
     with st.form("add_source_form", clear_on_submit=True):
         col_src1, col_src2 = st.columns([4, 1])
-        new_source = col_src1.text_input("Добавить новый URL для отслеживания:", placeholder="https://...")
+        new_source = col_src1.text_input("Добавить новый источник для отслеживания (URL):", placeholder="https://...")
         add_btn = col_src2.form_submit_button("Добавить")
         if add_btn and new_source.strip():
             if new_source.strip() not in tracked_sources:
@@ -580,37 +568,60 @@ if app_mode == "🧠 ИИ-Агент Кот (Текст)":
                     save_tracked_sources(tracked_sources)
                     st.rerun()
         else:
-            st.info("Нет отслеживаемых источников. Агент будет опираться только на свою базу и новости Yahoo Finance.")
-                
+            st.info("Нет отслеживаемых источников. Агент будет опираться только на свою базу и новости.")
+            
     st.markdown("---")
-    st.subheader("4. Аналитика и Репорты")
-    
-    st.markdown("Вы можете указать ссылки на конкретные статьи, которые агент должен прочесть **прямо сейчас** и использовать при написании этого отчета (каждая ссылка с новой строки):")
-    extra_urls_input = st.text_area("Дополнительные источники (URLs):", height=100)
-    
-    if st.button("🚀 СГЕНЕРИРОВАТЬ ПОЛНОЦЕННЫЙ ОТЧЕТ", type="primary", use_container_width=True):
-        with st.spinner("Идет сбор свежих новостей и генерация глубокого отчета... Это займет около 10-20 секунд."):
-            try:
-                report = generate_holistic_report(assets_input, extra_urls_string=extra_urls_input)
-                st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
-                st.markdown(report)
-                st.markdown("</div>", unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"Ошибка генерации отчета: {e}")
-                
-    with st.expander("Посмотреть текущую Базу Знаний Агента"):
+    st.subheader("3. База Знаний Агента")
+    with st.expander("Посмотреть текущую память агента (отредактируйте файл data/knowledge_base.md напрямую при необходимости)", expanded=True):
         kb_content = load_knowledge_base()
         st.markdown(kb_content)
         
     st.stop()
 
+elif app_mode == "📅 Календарь событий":
+    st.title("📅 Календарь макроэкономических событий")
+    st.markdown("Здесь публикуются результаты ключевых событий, их вероятные исходы и макроэкономические последствия.")
+    
+    from src.calendar import fetch_economic_calendar, analyze_calendar_events
+    
+    with st.spinner("Загрузка данных экономического календаря..."):
+        events = fetch_economic_calendar()
+        
+    if isinstance(events, dict) and "error" in events:
+        st.error(f"Не удалось загрузить календарь: {events['error']}")
+    elif not events:
+        st.info("На этой неделе нет важных макроэкономических событий для основных валют.")
+    else:
+        st.success(f"Загружено {len(events)} важных событий на эту неделю.")
+        
+        # Action button to trigger AI analysis
+        if st.button("🤖 Сгенерировать ИИ-Анализ Недели", type="primary"):
+            with st.spinner("ИИ анализирует предстоящие события..."):
+                analysis = analyze_calendar_events(events)
+                st.markdown("---")
+                st.markdown("## 🧠 ИИ-Анализ предстоящих событий")
+                st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
+                st.markdown(analysis)
+                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("---")
+        
+        for ev in events:
+            st.markdown(f"### {ev['date']} {ev['time']} — {ev['currency']} | {ev['event']}")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Важность", ev['impact'])
+            col2.metric("Прогноз", ev['forecast'] if ev['forecast'] else "—")
+            col3.metric("Предыдущее", ev['previous'] if ev['previous'] else "—")
+            st.markdown("<hr class='interp-hr'>", unsafe_allow_html=True)
+            
+    st.stop()
+
 elif app_mode == "📈 Интерактивный Дашборд":
-    st.title("📈 Интерактивный Дашборд")
-    st.markdown("Визуализация каждой метрики с персональным ИИ-комментарием.")
+    st.title("📈 Интерактивный Дашборд и Главный Репорт")
+    st.markdown("Сюда стягивается вся информация, графики, и здесь же генерируется один отчетливый репорт с настроением фондов, банков и учетом новостей.")
     
     from src.config import MARKETS
     from src.macro_data import DATA_DIR_MACRO
-    from src.agent import generate_dashboard_report
+    from src.agent import generate_dashboard_report, generate_holistic_report
     
     st.sidebar.markdown("### Настройки портфеля")
     popular_assets = ["BTC-USD", "SPY", "GC=F", "QQQ", "GLD", "ETH-USD", "EURUSD=X", "DX-Y.NYB", "^TNX"]
@@ -625,9 +636,16 @@ elif app_mode == "📈 Интерактивный Дашборд":
     )
     user_assets_input = ", ".join(user_assets_list)
     
-    if st.button("🚀 СГЕНЕРИРОВАТЬ ДАШБОРД", use_container_width=True, type="primary"):
-        with st.spinner("ИИ анализирует данные и строит дашборд... Это может занять около минуты."):
-            json_data = generate_dashboard_report(user_assets_input, "")
+    st.sidebar.markdown("### Доп. источники для агента")
+    extra_urls_input = st.sidebar.text_area("Срочные новости (URL, каждая с новой строки):", height=100)
+    
+    if st.button("🚀 СГЕНЕРИРОВАТЬ ДАШБОРД И ПОЛНЫЙ ОТЧЕТ", use_container_width=True, type="primary"):
+        with st.spinner("ИИ анализирует данные, собирает графики и читает новости... Это займет около минуты."):
+            json_data = generate_dashboard_report(user_assets_input, extra_urls_input)
+            try:
+                holistic_report = generate_holistic_report(user_assets_input, extra_urls_input)
+            except Exception as e:
+                holistic_report = f"Не удалось сгенерировать расширенный отчет: {e}"
             
             if "error" in json_data:
                 st.error(f"Ошибка при генерации JSON: {json_data['error']}")
@@ -702,8 +720,14 @@ elif app_mode == "📈 Интерактивный Дашборд":
                 
                 # 6. CONCLUSION
                 st.markdown("---")
-                st.markdown("## 🧠 ИТОГОВОЕ УМОЗАКЛЮЧЕНИЕ И ПРОГНОЗ")
+                st.markdown("## 🧠 КРАТКОЕ РЕЗЮМЕ")
                 st.markdown(f"<div class='interp-card' style='border-color: #3498db; background-color: rgba(52, 152, 219, 0.05);'><div style='font-size: 1.1em; line-height: 1.6;'>{json_data.get('conclusion', 'Нет итогового отчета.').replace(chr(10), '<br>')}</div></div>", unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.markdown("## 📜 РАЗВЕРНУТЫЙ МАКРО-ОТЧЕТ КОТА")
+                st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
+                st.markdown(holistic_report)
+                st.markdown("</div>", unsafe_allow_html=True)
     
     st.stop()
 
@@ -757,11 +781,13 @@ elif app_mode == "📖 Паспорт Терминала":
 """)
 
     st.markdown("---")
-    st.markdown("### 4. Роль ИИ-Агента")
+    st.markdown("---")
+    st.markdown("### 4. Роль ИИ-Агента и Структура Приложения")
     st.markdown("""
-- **LLM (Gemini 2.5 Pro/Flash)** используется исключительно как синтезатор.
-- **Ограничения**: ИИ не имеет доступа к интернету в свободном режиме поиска. Он анализирует только ту "Корзину Данных" (Data Basket), которую формируют скрипты-парсеры. 
-- **Функция**: Сведение разрозненных числовых аномалий (COT + Макро + Опционы) в единый текстовый отчет.
+- **LLM (Gemini 2.5 Pro/Flash)** используется как центральный мозг для синтеза данных.
+- **Интерактивный Дашборд**: ИИ сводит разрозненные числовые аномалии (COT + Макро + Опционы) и свежие новости в единый масштабный текстовый отчет.
+- **Календарь событий**: ИИ автоматически анализирует предстоящие макроэкономические события (из встроенного календаря ForexFactory) и формирует сценарии реакции рынка (ВВЕРХ/ВНИЗ).
+- **Обучение кота**: Пользователь может загружать собственные PDF-отчеты или ссылки на статьи, а также управлять списком "Постоянных источников", которые агент проверяет автоматически.
 """)
 
     st.stop()
