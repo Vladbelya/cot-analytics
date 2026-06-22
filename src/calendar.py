@@ -31,24 +31,25 @@ def fetch_economic_calendar():
                 impact_ru = "🟡 Низкая"
             else:
                 impact_ru = "⚪ Нет (Holiday)"
-                # Parse date
-                try:
-                    dt = datetime.fromisoformat(item["date"])
-                    date_str = dt.strftime("%Y-%m-%d")
-                    time_str = dt.strftime("%H:%M")
-                except:
-                    date_str = item.get("date", "")
-                    time_str = ""
-                    
-                filtered_events.append({
-                    "date": date_str,
-                    "time": time_str,
-                    "event": item.get("title", ""),
-                    "impact": impact_ru,
-                    "forecast": item.get("forecast", ""),
-                    "previous": item.get("previous", ""),
-                    "currency": item.get("country", "")
-                })
+            
+            # Parse date
+            try:
+                dt = datetime.fromisoformat(item["date"])
+                date_str = dt.strftime("%Y-%m-%d")
+                time_str = dt.strftime("%H:%M")
+            except:
+                date_str = item.get("date", "")
+                time_str = ""
+                
+            filtered_events.append({
+                "date": date_str,
+                "time": time_str,
+                "event": item.get("title", ""),
+                "impact": impact_ru,
+                "forecast": item.get("forecast", ""),
+                "previous": item.get("previous", ""),
+                "currency": item.get("country", "")
+            })
                 
         return filtered_events
     except Exception as e:
