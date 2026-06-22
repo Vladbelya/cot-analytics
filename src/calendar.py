@@ -17,12 +17,20 @@ def fetch_economic_calendar():
         response.raise_for_status()
         data = response.json()
         
-        # Filter for high/medium impact and major currencies
-        major_currencies = ["USD", "EUR", "GBP", "JPY", "CNY"]
+        # major_currencies = ["USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD", "CHF", "NZD"]
         filtered_events = []
         
         for item in data:
-            if item.get("country") in major_currencies and item.get("impact") in ["High", "Medium"]:
+            # We fetch all impacts, but filter by currency if needed. We can just return all for now.
+            impact_raw = item.get("impact", "")
+            if impact_raw == "High":
+                impact_ru = "🔴 Высокая"
+            elif impact_raw == "Medium":
+                impact_ru = "🟠 Средняя"
+            elif impact_raw == "Low":
+                impact_ru = "🟡 Низкая"
+            else:
+                impact_ru = "⚪ Нет (Holiday)"
                 # Parse date
                 try:
                     dt = datetime.fromisoformat(item["date"])
@@ -36,7 +44,7 @@ def fetch_economic_calendar():
                     "date": date_str,
                     "time": time_str,
                     "event": item.get("title", ""),
-                    "impact": "🔴 Высокая" if item.get("impact") == "High" else "🟠 Средняя",
+                    "impact": impact_ru,
                     "forecast": item.get("forecast", ""),
                     "previous": item.get("previous", ""),
                     "currency": item.get("country", "")
@@ -45,6 +53,23 @@ def fetch_economic_calendar():
         return filtered_events
     except Exception as e:
         return {"error": str(e)}
+
+@st.cache_data(ttl=86400) # Cache descriptions for 24 hours
+def get_event_description(event_title):
+    """
+    Uses LLM to provide a short description of the economic event.
+    """
+    from src.agent import get_gemini_client
+    try:
+        client = get_gemini_client()
+        prompt = f"Коротко объясни (в 1-2 предложениях на русском языке), что означает макроэкономическое событие '{event_title}' и на что оно влияет."
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        return response.text
+    except Exception:
+        return "Описание недоступно."
 
 def analyze_calendar_events(events):
     """

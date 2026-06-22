@@ -582,36 +582,54 @@ elif app_mode == "📅 Календарь событий":
     st.title("📅 Календарь макроэкономических событий")
     st.markdown("Здесь публикуются результаты ключевых событий, их вероятные исходы и макроэкономические последствия.")
     
-    from src.calendar import fetch_economic_calendar, analyze_calendar_events
+    from src.calendar import fetch_economic_calendar, analyze_calendar_events, get_event_description
+    
+    # Filter UI
+    st.sidebar.markdown("### Настройки календаря")
+    impact_filter = st.sidebar.multiselect(
+        "Важность событий:",
+        ["🔴 Высокая", "🟠 Средняя", "🟡 Низкая", "⚪ Нет (Holiday)"],
+        default=["🔴 Высокая", "🟠 Средняя"]
+    )
     
     with st.spinner("Загрузка данных экономического календаря..."):
-        events = fetch_economic_calendar()
+        all_events = fetch_economic_calendar()
         
-    if isinstance(events, dict) and "error" in events:
-        st.error(f"Не удалось загрузить календарь: {events['error']}")
-    elif not events:
-        st.info("На этой неделе нет важных макроэкономических событий для основных валют.")
+    if isinstance(all_events, dict) and "error" in all_events:
+        st.error(f"Не удалось загрузить календарь: {all_events['error']}")
+    elif not all_events:
+        st.info("На этой неделе нет макроэкономических событий.")
     else:
-        st.success(f"Загружено {len(events)} важных событий на эту неделю.")
+        events = [ev for ev in all_events if ev["impact"] in impact_filter]
         
-        # Action button to trigger AI analysis
-        if st.button("🤖 Сгенерировать ИИ-Анализ Недели", type="primary"):
-            with st.spinner("ИИ анализирует предстоящие события..."):
-                analysis = analyze_calendar_events(events)
-                st.markdown("---")
-                st.markdown("## 🧠 ИИ-Анализ предстоящих событий")
-                st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
-                st.markdown(analysis)
-                st.markdown("</div>", unsafe_allow_html=True)
-                st.markdown("---")
-        
-        for ev in events:
-            st.markdown(f"### {ev['date']} {ev['time']} — {ev['currency']} | {ev['event']}")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Важность", ev['impact'])
-            col2.metric("Прогноз", ev['forecast'] if ev['forecast'] else "—")
-            col3.metric("Предыдущее", ev['previous'] if ev['previous'] else "—")
-            st.markdown("<hr class='interp-hr'>", unsafe_allow_html=True)
+        if not events:
+            st.warning("Нет событий, подходящих под выбранные фильтры.")
+        else:
+            st.success(f"Отображено {len(events)} событий.")
+            
+            # Action button to trigger AI analysis
+            if st.button("🤖 Сгенерировать ИИ-Анализ Недели (для отфильтрованных событий)", type="primary"):
+                with st.spinner("ИИ анализирует предстоящие события..."):
+                    analysis = analyze_calendar_events(events)
+                    st.markdown("---")
+                    st.markdown("## 🧠 ИИ-Анализ предстоящих событий")
+                    st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
+                    st.markdown(analysis)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("---")
+            
+            for ev in events:
+                st.markdown(f"### {ev['date']} {ev['time']} — {ev['currency']} | {ev['event']}")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Важность", ev['impact'])
+                col2.metric("Прогноз", ev['forecast'] if ev['forecast'] else "—")
+                col3.metric("Предыдущее", ev['previous'] if ev['previous'] else "—")
+                
+                with st.expander("📖 Описание события"):
+                    desc = get_event_description(ev['event'])
+                    st.info(desc)
+                    
+                st.markdown("<hr class='interp-hr'>", unsafe_allow_html=True)
             
     st.stop()
 
