@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import streamlit as st
 import json
 import os
@@ -45,8 +45,9 @@ def fetch_economic_calendar():
             # Parse date
             try:
                 dt = datetime.fromisoformat(item["date"])
-                date_str = dt.strftime("%Y-%m-%d")
-                time_str = dt.strftime("%H:%M")
+                dt_utc = dt.astimezone(timezone.utc)
+                date_str = dt_utc.strftime("%Y-%m-%d")
+                time_str = dt_utc.strftime("%H:%M (UTC)")
             except:
                 date_str = item.get("date", "")
                 time_str = ""
