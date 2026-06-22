@@ -2,6 +2,8 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 import streamlit as st
+import json
+import os
 
 @st.cache_data(ttl=3600)
 def fetch_economic_calendar():
@@ -16,7 +18,15 @@ def fetch_economic_calendar():
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
+    except Exception as e:
+        # Fallback to local cache populated by github action
+        try:
+            with open("calendar_cache.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as cache_e:
+            return {"error": f"API Error: {e} | Cache Error: {cache_e}"}
         
+    try:
         # major_currencies = ["USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD", "CHF", "NZD"]
         filtered_events = []
         

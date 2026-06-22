@@ -1,0 +1,21 @@
+name: Update Calendar
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Every day at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Fetch calendar
+        run: curl -s -H "User-Agent: Mozilla/5.0" https://nfs.faireconomy.media/ff_calendar_thisweek.json -o calendar_cache.json
+      - name: Commit and push
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "action@github.com"
+          git add calendar_cache.json
+          git commit -m "chore: update economic calendar cache" || echo "No changes to commit"
+          git push
