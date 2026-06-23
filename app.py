@@ -380,89 +380,6 @@ def generate_interpretation_html(interp, market_name, participant_name):
         html += f"""<div class="interp-situation-line">{line}</div>"""
     html += "</div>"
 
-    html += '<hr class="interp-hr">'
-
-    # Section 2: Active signals with backtest data
-    if interp["active_signals"]:
-        html += """<div class="interp-section">
-<div class="interp-label">Активные сигналы и бэктест</div>"""
-
-        for item in interp["backtest_results"]:
-            sig_def = item["def"]
-            bt = item["backtest"]
-            direction = sig_def["direction"]
-
-            html += f"""<div class="interp-signal-row {direction}">
-<div style="flex: 1;">
-<div class="interp-signal-name">{sig_def['icon']} {sig_def['name']}</div>
-<div class="interp-signal-desc">{sig_def['desc']}</div>"""
-
-            # Backtest table
-            if bt and bt["horizons"]:
-                html += """<table class="bt-table">
-<thead><tr>
-<th style="text-align: left;">Горизонт</th>
-<th>Случаев</th>
-<th>Win Rate</th>
-<th>Ср. return</th>
-<th>Медиана</th>
-<th>Мин</th>
-<th>Макс</th>
-</tr></thead><tbody>"""
-                for h in FORWARD_HORIZONS:
-                    if h not in bt["horizons"]:
-                        continue
-                    s = bt["horizons"][h]
-                    wr = s["win_rate"]
-                    # Color code win rate
-                    if wr >= 60:
-                        wr_cls = "bt-wr-high"
-                    elif wr <= 40:
-                        wr_cls = "bt-wr-low"
-                    else:
-                        wr_cls = "bt-wr-mid"
-                    
-                    mean_sign = "+" if s["mean_return"] > 0 else ""
-                    med_sign = "+" if s["median_return"] > 0 else ""
-                    min_sign = "+" if s["min_return"] > 0 else ""
-                    max_sign = "+" if s["max_return"] > 0 else ""
-
-                    html += f"""<tr>
-<td>+{h} нед.</td>
-<td>{s['n']}</td>
-<td class="{wr_cls}">{wr}%</td>
-<td>{mean_sign}{s['mean_return']}%</td>
-<td>{med_sign}{s['median_return']}%</td>
-<td>{min_sign}{s['min_return']}%</td>
-<td>{max_sign}{s['max_return']}%</td>
-</tr>"""
-                html += "</tbody></table>"
-            else:
-                html += '<div class="interp-signal-desc" style="margin-top: 6px; color: #6b7280;">⚠️ Недостаточно исторических данных для бэктеста (менее 3 случаев).</div>'
-
-            html += "</div></div>"  # close signal-row
-
-        html += "</div>"  # close section
-    else:
-        html += """<div class="interp-section">
-<div class="interp-label">Активные сигналы</div>
-<div class="interp-situation-line" style="color: #6b7280;">Нет активных сигналов. Позиционирование в нейтральной зоне — ни один из 8 паттернов не сработал.</div>
-</div>"""
-
-    html += '<hr class="interp-hr">'
-
-    # Section 3: Verdict
-    verdict_cls = interp["verdict_class"]
-    html += f"""<div class="interp-section">
-<div class="interp-label">Заключение</div>
-<div class="interp-verdict {verdict_cls}">"""
-    for i, para in enumerate(interp["verdict_paragraphs"]):
-        if i > 0:
-            html += '<div style="margin-top: 12px;"></div>'
-        html += f'<div style="line-height: 1.7;">{para}</div>'
-    html += """</div>
-</div>"""
-
     html += "</div>"  # close interp-card
     return html
 
@@ -485,6 +402,26 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
     fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
+    return fig
+
+def draw_flows_chart(plot_df, market_name, chart_height=450):
+    fig = make_subplots(
+        rows=2, cols=1, 
+        shared_xaxes=True, 
+        vertical_spacing=0.08,
+        row_heights=[0.55, 0.45]
+    )
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
+    
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change"], name="Приток/Отток Лонгов", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change"], name="Приток/Отток Шортов", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=2, col=1)
+    
+    fig.update_layout(height=chart_height, template="plotly_dark", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
+    for r in [1, 2]:
+        fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
+        fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
+    fig.update_yaxes(title_text="Цена актива", row=1, col=1)
+    fig.update_yaxes(title_text="Приток / Отток", row=2, col=1)
     return fig
 
 # --- Sidebar ---
@@ -910,9 +847,12 @@ else:
         plot_df = df.copy()
         
     # Rebuild Plotly chart using the helper function
-    fig = draw_cot_chart(plot_df, selected_market, chart_height=620)
-    
+    fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("### 🌊 Приток и отток позиций (WoW)")
+    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=450)
+    st.plotly_chart(fig2, use_container_width=True)
     
     # 3. Simplified Historical HTML Table
     table_html = generate_minimal_html_table(df, selected_market, selected_display.split(" (")[0])
