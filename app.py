@@ -404,52 +404,6 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
     fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
     return fig
 
-def draw_gauge_charts(latest_row, participant_name, chart_height=250):
-    fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'indicator'}, {'type': 'indicator'}]])
-    
-    # --- Longs Anomaly Gauge ---
-    l_z = latest_row.get("long_change_zscore", 0.0)
-    fig.add_trace(go.Indicator(
-        mode="gauge+number",
-        value=l_z,
-        title={'text': "Аномалия Лонгов (Z-Score)", 'font': {'size': 14, 'color': '#d1d5db'}},
-        gauge={
-            'axis': {'range': [-3, 4], 'tickwidth': 1, 'tickcolor': "#333"},
-            'bar': {'color': "#2ecc71" if l_z >= 0 else "#95a5a6"},
-            'bgcolor': "rgba(0,0,0,0)",
-            'borderwidth': 2,
-            'bordercolor': "#333",
-            'steps': [
-                {'range': [-3, 1.5], 'color': "rgba(255,255,255,0.05)"},
-                {'range': [1.5, 2.0], 'color': "rgba(241, 196, 15, 0.2)"},
-                {'range': [2.0, 4.0], 'color': "rgba(231, 76, 60, 0.3)"}], # Red zone for overheat
-            'threshold': {'line': {'color': "#e74c3c", 'width': 3}, 'thickness': 0.75, 'value': 2.0}
-        }
-    ), row=1, col=1)
-    
-    # --- Shorts Anomaly Gauge ---
-    s_z = latest_row.get("short_change_zscore", 0.0)
-    fig.add_trace(go.Indicator(
-        mode="gauge+number",
-        value=s_z,
-        title={'text': "Аномалия Шортов (Z-Score)", 'font': {'size': 14, 'color': '#d1d5db'}},
-        gauge={
-            'axis': {'range': [-3, 4], 'tickwidth': 1, 'tickcolor': "#333"},
-            'bar': {'color': "#e74c3c" if s_z >= 0 else "#95a5a6"},
-            'bgcolor': "rgba(0,0,0,0)",
-            'borderwidth': 2,
-            'bordercolor': "#333",
-            'steps': [
-                {'range': [-3, 1.5], 'color': "rgba(255,255,255,0.05)"},
-                {'range': [1.5, 2.0], 'color': "rgba(241, 196, 15, 0.2)"},
-                {'range': [2.0, 4.0], 'color': "rgba(46, 204, 113, 0.3)"}], # Green zone for short squeeze potential
-            'threshold': {'line': {'color': "#2ecc71", 'width': 3}, 'thickness': 0.75, 'value': 2.0}
-        }
-    ), row=1, col=2)
-    
-    fig.update_layout(height=chart_height, template="plotly_dark", margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'family': "Inter"})
-    return fig
-
 def draw_flows_chart(plot_df, market_name, chart_height=650):
     fig = make_subplots(
         rows=3, cols=1, 
@@ -460,25 +414,36 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
     # Row 1: Price
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
     
-    # Row 2: Long Change + Anomalies
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change"], name="Лонги (Изменение)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_upper"], name="Верхняя граница (Лонг)", line=dict(color="rgba(46, 204, 113, 0.3)", width=1, dash="dash"), mode="lines"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_lower"], name="Нижняя граница (Лонг)", line=dict(color="rgba(46, 204, 113, 0.3)", width=1, dash="dash"), mode="lines", fill="tonexty", fillcolor="rgba(46, 204, 113, 0.05)"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_anomaly"], name="Аномальный Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
+    # Row 2: Long Z-Score (Overheat Oscillator)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_zscore"], name="Перегрев Лонгов (Z-Score)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
+    # Thresholds
+    fig.add_hline(y=2.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
+    fig.add_hline(y=-2.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
     
-    # Row 3: Short Change + Anomalies
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change"], name="Шорты (Изменение)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_upper"], name="Верхняя граница (Шорт)", line=dict(color="rgba(231, 76, 60, 0.3)", width=1, dash="dash"), mode="lines"), row=3, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_lower"], name="Нижняя граница (Шорт)", line=dict(color="rgba(231, 76, 60, 0.3)", width=1, dash="dash"), mode="lines", fill="tonexty", fillcolor="rgba(231, 76, 60, 0.05)"), row=3, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_anomaly"], name="Аномальный Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
+    # Anomalies markers
+    long_anomalies_dates = plot_df[plot_df["long_change_zscore"].abs() >= 2.0]["report_date"]
+    long_anomalies_vals = plot_df[plot_df["long_change_zscore"].abs() >= 2.0]["long_change_zscore"]
+    fig.add_trace(go.Scatter(x=long_anomalies_dates, y=long_anomalies_vals, name="Аномалия Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
+    
+    # Row 3: Short Z-Score (Overheat Oscillator)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_zscore"], name="Перегрев Шортов (Z-Score)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
+    # Thresholds
+    fig.add_hline(y=2.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
+    fig.add_hline(y=-2.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
+    
+    # Anomalies markers
+    short_anomalies_dates = plot_df[plot_df["short_change_zscore"].abs() >= 2.0]["report_date"]
+    short_anomalies_vals = plot_df[plot_df["short_change_zscore"].abs() >= 2.0]["short_change_zscore"]
+    fig.add_trace(go.Scatter(x=short_anomalies_dates, y=short_anomalies_vals, name="Аномалия Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
     
     fig.update_layout(height=chart_height, template="plotly_dark", showlegend=False, margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
     for r in [1, 2, 3]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
-    fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Δ Лонги", row=2, col=1)
-    fig.update_yaxes(title_text="Δ Шорты", row=3, col=1)
+        
+    fig.update_yaxes(title_text="Цена", row=1, col=1)
+    fig.update_yaxes(title_text="Лонги (Z-Score)", range=[-4.5, 4.5], row=2, col=1)
+    fig.update_yaxes(title_text="Шорты (Z-Score)", range=[-4.5, 4.5], row=3, col=1)
     return fig
 
 # --- Sidebar ---
@@ -907,13 +872,8 @@ else:
     fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
     st.plotly_chart(fig, use_container_width=True)
     
-    st.markdown("### 🌡️ Градусник Настроений (Аномалии)")
-    latest_row_df = df.iloc[-1]
-    fig_gauge = draw_gauge_charts(latest_row_df, tff_participant, chart_height=250)
-    st.plotly_chart(fig_gauge, use_container_width=True)
-    
-    st.markdown("### 🌊 Приток и отток позиций (WoW)")
-    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=450)
+    st.markdown("### 🌊 Осциллятор Настроений (Z-Score)")
+    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=550)
     st.plotly_chart(fig2, use_container_width=True)
     
     # 3. Simplified Historical HTML Table
