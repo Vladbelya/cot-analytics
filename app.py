@@ -419,19 +419,19 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
         
         # Long Spikes (Red overlays indicating Overbought / Bearish reversal)
         if l_pct >= 20:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(231, 76, 60, 0.4)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.4)", row="all", col=1, layer="below")
         elif l_pct >= 15:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(231, 76, 60, 0.2)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.2)", row="all", col=1, layer="below")
         elif l_pct >= 10:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(231, 76, 60, 0.08)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.08)", row="all", col=1, layer="below")
             
         # Short Spikes (Green overlays indicating Oversold / Bullish reversal)
         if s_pct >= 20:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(46, 204, 113, 0.4)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.4)", row="all", col=1, layer="below")
         elif s_pct >= 15:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(46, 204, 113, 0.2)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.2)", row="all", col=1, layer="below")
         elif s_pct >= 10:
-            fig.add_vline(x=row["report_date"], line_width=8, line_color="rgba(46, 204, 113, 0.08)")
+            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.08)", row="all", col=1, layer="below")
 
     # Row 1: Price
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
