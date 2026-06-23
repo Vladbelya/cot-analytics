@@ -894,7 +894,7 @@ else:
     fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
     st.plotly_chart(fig, use_container_width=True)
     
-    st.markdown("### 🌊 Осциллятор Настроений (Z-Score)")
+    st.markdown("### 🌊 Осциллятор Настроений (COT Index 156-week)")
     fig2 = draw_flows_chart(plot_df, selected_market, chart_height=550)
     st.plotly_chart(fig2, use_container_width=True)
     
