@@ -404,6 +404,97 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
     fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
     return fig
 
+def draw_gauge_charts(latest_row, participant_name, chart_height=250):
+    if participant_name == "Leveraged Funds":
+        fig = make_subplots(rows=1, cols=2, specs=[[{'type': 'indicator'}, {'type': 'indicator'}]])
+        
+        # Long Overheat Gauge
+        l_z = latest_row.get("long_change_zscore", 0.0)
+        fig.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=l_z,
+            title={'text': "Перегрев Лонгов (Z-Score)", 'font': {'size': 14, 'color': '#d1d5db'}},
+            gauge={
+                'axis': {'range': [0, 4], 'tickwidth': 1, 'tickcolor': "#333"},
+                'bar': {'color': "#2ecc71" if l_z < 2.0 else "#e74c3c"},
+                'bgcolor': "rgba(0,0,0,0)",
+                'borderwidth': 2,
+                'bordercolor': "#333",
+                'steps': [
+                    {'range': [0, 1.5], 'color': "rgba(255,255,255,0.05)"},
+                    {'range': [1.5, 2.0], 'color': "rgba(241, 196, 15, 0.2)"},
+                    {'range': [2.0, 4.0], 'color': "rgba(231, 76, 60, 0.3)"}],
+                'threshold': {'line': {'color': "#e74c3c", 'width': 3}, 'thickness': 0.75, 'value': 2.0}
+            }
+        ), row=1, col=1)
+        
+        # Short Overheat Gauge
+        s_z = latest_row.get("short_change_zscore", 0.0)
+        fig.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=s_z,
+            title={'text': "Перегрев Шортов (Z-Score)", 'font': {'size': 14, 'color': '#d1d5db'}},
+            gauge={
+                'axis': {'range': [0, 4], 'tickwidth': 1, 'tickcolor': "#333"},
+                'bar': {'color': "#e74c3c" if s_z < 2.0 else "#2ecc71"},
+                'bgcolor': "rgba(0,0,0,0)",
+                'borderwidth': 2,
+                'bordercolor': "#333",
+                'steps': [
+                    {'range': [0, 1.5], 'color': "rgba(255,255,255,0.05)"},
+                    {'range': [1.5, 2.0], 'color': "rgba(241, 196, 15, 0.2)"},
+                    {'range': [2.0, 4.0], 'color': "rgba(46, 204, 113, 0.3)"}],
+                'threshold': {'line': {'color': "#2ecc71", 'width': 3}, 'thickness': 0.75, 'value': 2.0}
+            }
+        ), row=1, col=2)
+        
+    elif participant_name == "Asset Manager":
+        fig = make_subplots(rows=1, cols=1, specs=[[{'type': 'indicator'}]])
+        nf_z = latest_row.get("net_flow_zscore", 0.0)
+        
+        # Determine bar color based on bullish/bearish extremes
+        if nf_z >= 2.0: bar_color = "#e74c3c" # Overbought, bearish
+        elif nf_z <= -2.0: bar_color = "#2ecc71" # Oversold, bullish
+        else: bar_color = "#3498db"
+        
+        fig.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=nf_z,
+            title={'text': "Индикатор Настроений (Net Flow Z-Score)", 'font': {'size': 14, 'color': '#d1d5db'}},
+            gauge={
+                'axis': {'range': [-4, 4], 'tickwidth': 1, 'tickcolor': "#333"},
+                'bar': {'color': bar_color},
+                'bgcolor': "rgba(0,0,0,0)",
+                'borderwidth': 2,
+                'bordercolor': "#333",
+                'steps': [
+                    {'range': [-4, -2.0], 'color': "rgba(46, 204, 113, 0.2)"}, # Bullish buy zone
+                    {'range': [-2.0, 2.0], 'color': "rgba(255,255,255,0.05)"},
+                    {'range': [2.0, 4.0], 'color': "rgba(231, 76, 60, 0.2)"}], # Bearish FOMO zone
+                'threshold': {'line': {'color': "#ffffff", 'width': 2}, 'thickness': 0.75, 'value': 0}
+            }
+        ), row=1, col=1)
+    else:
+        # Generic Net Flow Gauge for other participants
+        fig = make_subplots(rows=1, cols=1, specs=[[{'type': 'indicator'}]])
+        nf_z = latest_row.get("net_flow_zscore", 0.0)
+        fig.add_trace(go.Indicator(
+            mode="gauge+number",
+            value=nf_z,
+            title={'text': "Net Flow Z-Score", 'font': {'size': 14, 'color': '#d1d5db'}},
+            gauge={
+                'axis': {'range': [-4, 4]},
+                'bar': {'color': "#9b59b6"},
+                'bgcolor': "rgba(0,0,0,0)",
+                'steps': [
+                    {'range': [-4, -2.0], 'color': "rgba(255,255,255,0.1)"},
+                    {'range': [2.0, 4.0], 'color': "rgba(255,255,255,0.1)"}],
+            }
+        ), row=1, col=1)
+        
+    fig.update_layout(height=chart_height, template="plotly_dark", margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'family': "Inter"})
+    return fig
+
 def draw_flows_chart(plot_df, market_name, chart_height=650):
     fig = make_subplots(
         rows=3, cols=1, 
@@ -860,6 +951,11 @@ else:
     # Rebuild Plotly chart using the helper function
     fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
     st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown("### 🌡️ Градусник Настроений (Аномалии)")
+    latest_row_df = df.iloc[-1]
+    fig_gauge = draw_gauge_charts(latest_row_df, tff_participant, chart_height=250)
+    st.plotly_chart(fig_gauge, use_container_width=True)
     
     st.markdown("### 🌊 Приток и отток позиций (WoW)")
     fig2 = draw_flows_chart(plot_df, selected_market, chart_height=450)

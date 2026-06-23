@@ -75,13 +75,20 @@ def calculate_metrics(df):
     df["oi_change"] = df["open_interest"].diff(1).fillna(0.0)
     df["oi_change_pct"] = np.where(df["open_interest"].shift(1) > 0, (df["open_interest"].diff(1) / df["open_interest"].shift(1)) * 100, 0.0)
     
-    # Anomalies for Long and Short changes (2 standard deviations)
-    for col in ["long_change", "short_change"]:
+    df["net_flow"] = df["long_change"] - df["short_change"]
+    
+    # Anomalies for Long, Short and Net flows (Z-Scores over 52w)
+    for col in ["long_change", "short_change", "net_flow"]:
         mean_52w = df[col].rolling(window=52, min_periods=26).mean()
         std_52w = df[col].rolling(window=52, min_periods=26).std()
-        df[f"{col}_upper"] = mean_52w + 2 * std_52w
-        df[f"{col}_lower"] = mean_52w - 2 * std_52w
-        df[f"{col}_anomaly"] = np.where((df[col] > df[f"{col}_upper"]) | (df[col] < df[f"{col}_lower"]), df[col], np.nan)
+        df[f"{col}_mean"] = mean_52w
+        df[f"{col}_std"] = std_52w
+        df[f"{col}_upper"] = mean_52w + 2.0 * std_52w
+        df[f"{col}_lower"] = mean_52w - 2.0 * std_52w
+        df[f"{col}_zscore"] = np.where(std_52w != 0, (df[col] - mean_52w) / std_52w, 0.0)
+        
+        # Visual anomaly markers for charts (2.0 STD)
+        df[f"{col}_anomaly"] = np.where(np.abs(df[f"{col}_zscore"]) >= 2.0, df[col], np.nan)
 
     
     # 3. Rolling COT Indexes
@@ -158,6 +165,23 @@ def get_latest_signals(df):
             signals.append((f"Резкий бычий импульс (WoW +{current_shift:.1f}% OI)", "bullish"))
         elif current_shift <= q05:
             signals.append((f"Резкий медвежий импульс (WoW {current_shift:.1f}% OI)", "bearish"))
+            
+    # 5. Smart Money contrarian indicators (Overheat and FOMO)
+    l_z = latest["long_change_zscore"]
+    s_z = latest["short_change_zscore"]
+    nf_z = latest["net_flow_zscore"]
+    
+    # Leveraged Funds / Speculators Overheat
+    if l_z >= 2.0:
+        signals.append((f"🔥 Перегрев лонгов: аномальный приток ({l_z:.1f} STD). Сигнал на охлаждение.", "bearish_warning"))
+    if s_z >= 2.0:
+        signals.append((f"🔥 Перегрев шортов: аномальный приток ({s_z:.1f} STD). Сигнал на шорт-сквиз.", "bullish_warning"))
+        
+    # Asset Managers / Institutional Shift
+    if nf_z >= 2.0:
+        signals.append((f"⚠️ Институциональное FOMO: аномальный бычий сдвиг ({nf_z:.1f} STD). Опасность разворота вниз.", "bearish_warning"))
+    elif nf_z <= -2.0:
+        signals.append((f"📉 Институциональная паника: аномальный медвежий сдвиг ({nf_z:.1f} STD). Опасность отскока вверх.", "bullish_warning"))
             
     return signals
 
