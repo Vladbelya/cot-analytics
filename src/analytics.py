@@ -193,3 +193,90 @@ def get_market_analysis(market_name, participant_name):
     raw_df = load_and_prepare_data(market_name, participant_name)
     analytics_df = calculate_metrics(raw_df)
     return analytics_df
+
+def generate_holistic_report(market_name):
+    try:
+        am_df = get_market_analysis(market_name, "Asset Manager")
+        lf_df = get_market_analysis(market_name, "Leveraged Funds")
+    except Exception:
+        return "Недостаточно данных для формирования комплексного отчета."
+        
+    if am_df.empty or lf_df.empty:
+        return "Недостаточно данных для формирования комплексного отчета."
+        
+    latest_am = am_df.iloc[-1]
+    latest_lf = lf_df.iloc[-1]
+    
+    # 1. Контекст рынка (Цена)
+    price_now = latest_am["close"]
+    price_1w_ago = am_df["close"].iloc[-2] if len(am_df) > 1 else price_now
+    price_4w_ago = am_df["close"].iloc[-5] if len(am_df) > 4 else price_now
+    
+    wow_trend = "выросла" if price_now > price_1w_ago else "упала"
+    mom_trend = "роста" if price_now > price_4w_ago else "падения"
+    
+    context = f"**📊 Контекст рынка (Цена):** За последнюю неделю цена {wow_trend} до отметки ${price_now:,.2f}. В разрезе месяца актив находится в фазе {mom_trend}."
+    
+    # 2. Расстановка сил (Умные vs Толпа)
+    am_l = latest_am["long_index"]
+    am_s = latest_am["short_index"]
+    lf_l = latest_lf["long_index"]
+    lf_s = latest_lf["short_index"]
+    
+    # Analyze Asset Managers
+    am_action = "Институционалы (Умные деньги) ведут себя нейтрально."
+    am_is_bearish = False
+    am_is_bullish = False
+    if am_l < 20 and am_s > 80:
+        am_action = "Институционалы (Умные деньги) полностью выходят из актива: их лонги на исторических минимумах, а шорты пробили потолок. Они агрессивно ставят на падение."
+        am_is_bearish = True
+    elif am_l > 80 and am_s < 20:
+        am_action = "Институционалы (Умные деньги) агрессивно выкупают актив: их лонги на 3-летнем максимуме, а шорты практически отсутствуют."
+        am_is_bullish = True
+    elif am_l > 80:
+        am_action = "Институционалы активно набирают лонги (экстремум)."
+        am_is_bullish = True
+    elif am_s > 80:
+        am_action = "Институционалы активно набирают шорты (экстремум)."
+        am_is_bearish = True
+        
+    # Analyze Leveraged Funds
+    lf_action = "Спекулянты (Толпа) не показывают явных перекосов."
+    lf_is_bullish = False
+    lf_is_bearish = False
+    if lf_l > 80 and lf_s < 20:
+        lf_action = "В это же время Спекулянты (Толпа) подверглись жесткому FOMO: они скупили всё на хаях, доведя свои лонги до 3-летнего максимума."
+        lf_is_bullish = True
+    elif lf_l < 20 and lf_s > 80:
+        lf_action = "В это же время Спекулянты (Толпа) в панике зашортили дно: их шорты на 3-летнем максимуме."
+        lf_is_bearish = True
+    elif lf_l > 80:
+        lf_action = "Спекулянты (Толпа) перегружены в лонгах."
+        lf_is_bullish = True
+    elif lf_s > 80:
+        lf_action = "Спекулянты (Толпа) перегружены в шортах."
+        lf_is_bearish = True
+        
+    forces = f"**⚖️ Расстановка сил (Умные vs Толпа):**\n* {am_action}\n* {lf_action}"
+    
+    # Check for WOW spikes
+    am_l_spike = latest_am.get("long_wow_pct", 0)
+    am_s_spike = latest_am.get("short_wow_pct", 0)
+    if am_l_spike >= 15:
+        forces += f"\n* 🚨 **Аномалия:** Институционалы внезапно нарастили лонги на {am_l_spike:.1f}% за одну неделю! Это сильнейший статистический сигнал на разворот/капитуляцию."
+    if am_s_spike >= 15:
+        forces += f"\n* 🚨 **Аномалия:** Институционалы внезапно нарастили шорты на {am_s_spike:.1f}% за одну неделю!"
+    
+    # 3. Вердикт (Механика)
+    verdict = "**🔮 Итоговый вердикт (Механика):** Ситуация выглядит нейтрально или смешанно. Явных дисбалансов между умными деньгами и спекулянтами нет."
+    
+    if am_is_bearish and lf_is_bullish:
+        verdict = "**🔮 Итоговый вердикт (Капитуляция близко):** Это катастрофически медвежий сетап. Произошла полная передача риска от сильных рук (фондов) к слабым рукам (спекулянтам). Институциональной поддержки у цены больше нет. Вся масса актива сейчас в руках спекулянтов, которые сидят с огромными лонгами. Как только цена просядет, начнется каскад маржин-коллов (long squeeze) и резкий обвал вниз."
+    elif am_is_bullish and lf_is_bearish:
+        verdict = "**🔮 Итоговый вердикт (Взрывной рост):** Это невероятно бычий сетап. Умные деньги тихо выкупили всё дно, в то время как толпа в панике шортит. Ликвидность для падения исчерпана. Ожидается мощный шорт-сквиз: спекулянтов начнут принудительно закрывать по стопам, что запустит ракету вверх."
+    elif am_is_bullish and lf_is_bullish:
+        verdict = "**🔮 Итоговый вердикт (Тотальная эйфория):** И фонды, и спекулянты загружены в лонги. Тренду ничто не мешает, но будьте осторожны: рынок сильно перегрет, свободных денег для продолжения покупок почти не осталось."
+    elif am_is_bearish and lf_is_bearish:
+        verdict = "**🔮 Итоговый вердикт (Тотальная паника):** Все участники рынка зашортили актив. Падать дальше очень тяжело, так как нет продавцов. Рынок созрел для внезапного, сильного отскока вверх."
+        
+    return f"{context}\n\n{forces}\n\n{verdict}\n"
