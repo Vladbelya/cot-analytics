@@ -75,20 +75,22 @@ def calculate_metrics(df):
     df["oi_change"] = df["open_interest"].diff(1).fillna(0.0)
     df["oi_change_pct"] = np.where(df["open_interest"].shift(1) > 0, (df["open_interest"].diff(1) / df["open_interest"].shift(1)) * 100, 0.0)
     
-    df["net_flow"] = df["long_change"] - df["short_change"]
+    # Classical COT Index (156 weeks = 3 years)
+    lookback = 156
     
-    # Anomalies for Long, Short and Net flows (Z-Scores over 52w)
-    for col in ["long_change", "short_change", "net_flow"]:
-        mean_52w = df[col].rolling(window=52, min_periods=26).mean()
-        std_52w = df[col].rolling(window=52, min_periods=26).std()
-        df[f"{col}_mean"] = mean_52w
-        df[f"{col}_std"] = std_52w
-        df[f"{col}_upper"] = mean_52w + 2.0 * std_52w
-        df[f"{col}_lower"] = mean_52w - 2.0 * std_52w
-        df[f"{col}_zscore"] = np.where(std_52w != 0, (df[col] - mean_52w) / std_52w, 0.0)
-        
-        # Visual anomaly markers for charts (2.0 STD)
-        df[f"{col}_anomaly"] = np.where(np.abs(df[f"{col}_zscore"]) >= 2.0, df[col], np.nan)
+    # Calculate Long COT Index
+    min_l = df['long'].rolling(lookback, min_periods=52).min()
+    max_l = df['long'].rolling(lookback, min_periods=52).max()
+    df['long_index'] = np.where((max_l - min_l) > 0, (df['long'] - min_l) / (max_l - min_l) * 100, 50.0)
+    
+    # Calculate Short COT Index
+    min_s = df['short'].rolling(lookback, min_periods=52).min()
+    max_s = df['short'].rolling(lookback, min_periods=52).max()
+    df['short_index'] = np.where((max_s - min_s) > 0, (df['short'] - min_s) / (max_s - min_s) * 100, 50.0)
+    
+    # Anomaly markers (Extreme zones: >90 and <10)
+    df["long_index_anomaly"] = np.where((df["long_index"] >= 90) | (df["long_index"] <= 10), df["long_index"], np.nan)
+    df["short_index_anomaly"] = np.where((df["short_index"] >= 90) | (df["short_index"] <= 10), df["short_index"], np.nan)
 
     
     # 3. Rolling COT Indexes
@@ -166,22 +168,19 @@ def get_latest_signals(df):
         elif current_shift <= q05:
             signals.append((f"Резкий медвежий импульс (WoW {current_shift:.1f}% OI)", "bearish"))
             
-    # 5. Smart Money contrarian indicators (Overheat and FOMO)
-    l_z = latest["long_change_zscore"]
-    s_z = latest["short_change_zscore"]
-    nf_z = latest["net_flow_zscore"]
+    # 5. Classical COT Index Extremes
+    l_idx = latest["long_index"]
+    s_idx = latest["short_index"]
     
-    # Leveraged Funds / Speculators Overheat
-    if l_z >= 2.0:
-        signals.append((f"🔥 Перегрев лонгов: аномальный приток ({l_z:.1f} STD). Сигнал на охлаждение.", "bearish_warning"))
-    if s_z >= 2.0:
-        signals.append((f"🔥 Перегрев шортов: аномальный приток ({s_z:.1f} STD). Сигнал на шорт-сквиз.", "bullish_warning"))
+    if l_idx >= 90:
+        signals.append((f"🔥 Экстремальный Лонг: COT Индекс {l_idx:.1f}%. Аномальная перекупленность.", "bearish_warning"))
+    elif l_idx <= 10:
+        signals.append((f"📉 Исторический минимум лонгов: COT Индекс {l_idx:.1f}%. Перепроданность.", "bullish_warning"))
         
-    # Asset Managers / Institutional Shift
-    if nf_z >= 2.0:
-        signals.append((f"⚠️ Институциональное FOMO: аномальный бычий сдвиг ({nf_z:.1f} STD). Опасность разворота вниз.", "bearish_warning"))
-    elif nf_z <= -2.0:
-        signals.append((f"📉 Институциональная паника: аномальный медвежий сдвиг ({nf_z:.1f} STD). Опасность отскока вверх.", "bullish_warning"))
+    if s_idx >= 90:
+        signals.append((f"🔥 Экстремальный Шорт: COT Индекс {s_idx:.1f}%. Шорт-сквиз потенциал.", "bullish_warning"))
+    elif s_idx <= 10:
+        signals.append((f"📉 Исторический минимум шортов: COT Индекс {s_idx:.1f}%. Недостаток медведей.", "bearish_warning"))
             
     return signals
 

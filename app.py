@@ -414,27 +414,27 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
     # Row 1: Price
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
     
-    # Row 2: Long Z-Score (Overheat Oscillator)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_zscore"], name="Перегрев Лонгов (Z-Score)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
+    # Row 2: Long COT Index
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_index"], name="COT Index (Лонги)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
     # Thresholds
-    fig.add_hline(y=2.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
-    fig.add_hline(y=-2.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
+    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=2, col=1)
+    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
     
     # Anomalies markers
-    long_anomalies_dates = plot_df[plot_df["long_change_zscore"].abs() >= 2.0]["report_date"]
-    long_anomalies_vals = plot_df[plot_df["long_change_zscore"].abs() >= 2.0]["long_change_zscore"]
-    fig.add_trace(go.Scatter(x=long_anomalies_dates, y=long_anomalies_vals, name="Аномалия Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
+    long_anomalies_dates = plot_df[plot_df["long_index_anomaly"].notna()]["report_date"]
+    long_anomalies_vals = plot_df[plot_df["long_index_anomaly"].notna()]["long_index"]
+    fig.add_trace(go.Scatter(x=long_anomalies_dates, y=long_anomalies_vals, name="Экстремум Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
     
-    # Row 3: Short Z-Score (Overheat Oscillator)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_zscore"], name="Перегрев Шортов (Z-Score)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
+    # Row 3: Short COT Index
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_index"], name="COT Index (Шорты)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
     # Thresholds
-    fig.add_hline(y=2.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
-    fig.add_hline(y=-2.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
+    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=3, col=1)
+    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
     
     # Anomalies markers
-    short_anomalies_dates = plot_df[plot_df["short_change_zscore"].abs() >= 2.0]["report_date"]
-    short_anomalies_vals = plot_df[plot_df["short_change_zscore"].abs() >= 2.0]["short_change_zscore"]
-    fig.add_trace(go.Scatter(x=short_anomalies_dates, y=short_anomalies_vals, name="Аномалия Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
+    short_anomalies_dates = plot_df[plot_df["short_index_anomaly"].notna()]["report_date"]
+    short_anomalies_vals = plot_df[plot_df["short_index_anomaly"].notna()]["short_index"]
+    fig.add_trace(go.Scatter(x=short_anomalies_dates, y=short_anomalies_vals, name="Экстремум Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
     
     fig.update_layout(height=chart_height, template="plotly_dark", showlegend=False, margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
     for r in [1, 2, 3]:
@@ -442,8 +442,8 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         
     fig.update_yaxes(title_text="Цена", row=1, col=1)
-    fig.update_yaxes(title_text="Лонги (Z-Score)", range=[-4.5, 4.5], row=2, col=1)
-    fig.update_yaxes(title_text="Шорты (Z-Score)", range=[-4.5, 4.5], row=3, col=1)
+    fig.update_yaxes(title_text="COT Index (Long)", range=[-5, 105], row=2, col=1)
+    fig.update_yaxes(title_text="COT Index (Short)", range=[-5, 105], row=3, col=1)
     return fig
 
 # --- Sidebar ---
