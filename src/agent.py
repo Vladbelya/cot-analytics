@@ -47,6 +47,7 @@ YOUR KNOWLEDGE BASE (Long-term memory):
 INSTRUCTIONS:
 CRITICAL RULE 1: The report MUST be written ENTIRELY IN RUSSIAN.
 CRITICAL RULE 2: You must analyze EVERY CATEGORY OF METRICS provided in the Data Basket. Do not skip any data source (Macro, COT, Options, ETFs, etc.).
+CRITICAL RULE 3: For COT data, ALWAYS interpret the positions of different market participants (Asset Managers vs Leveraged Funds) SEPARATELY, highlighting their differences and conflicting interests.
 
 STRUCTURE REQUIRED:
 
@@ -91,7 +92,7 @@ You MUST return your response strictly matching this JSON schema. Do not write a
     "M2SL": "Short analysis of M2 Money Supply.",
     "RATES": "Short analysis of DGS10 and DGS2 (Rates & Yield Curve).",
     "INFLATION": "Short analysis of CPIAUCSL and UNRATE.",
-    "COT": "Analysis of COT positioning for the requested assets.",
+    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators).",
     "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies).",
     "ETFS": "Analysis of ETF volume anomalies."
   },
@@ -384,7 +385,7 @@ JSON STRUCTURE REQUIRED:
     "M2SL": "Short analysis of M2 Money Supply.",
     "RATES": "Short analysis of DGS10 and DGS2 (Rates & Yield Curve).",
     "INFLATION": "Short analysis of CPIAUCSL and UNRATE.",
-    "COT": "Analysis of COT positioning for the requested assets.",
+    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators).",
     "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies).",
     "ETFS": "Analysis of ETF volume anomalies."
   }},

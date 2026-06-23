@@ -230,7 +230,7 @@ def _fmt(val, sign=False):
     return s
 
 
-def generate_situation_text(df):
+def generate_situation_text(df, participant_name="Участники"):
     """
     Generate a human-readable description of what happened this week.
     Returns a list of strings (paragraphs).
@@ -280,14 +280,14 @@ def generate_situation_text(df):
     return lines
 
 
-def generate_verdict(backtest_results, df):
+def generate_verdict(backtest_results, df, participant_name="Участники"):
     """
     Generate a detailed, multi-paragraph analytical verdict.
     Returns (verdict_paragraphs: list[str], verdict_class: str).
     Each paragraph is an HTML string.
     """
     if not backtest_results:
-        no_signal_text = _build_no_signal_verdict(df)
+        no_signal_text = _build_no_signal_verdict(df, participant_name)
         return no_signal_text, "neutral"
 
     latest = df.iloc[-1]
@@ -328,25 +328,25 @@ def generate_verdict(backtest_results, df):
     net_val = latest["net"]
     oi_chg = latest["oi_change"]
 
-    action_parts = []
+    action_parts = ["<strong>⚡ Текущая динамика:</strong>"]
     if long_chg > 0 and short_chg < 0:
         action_parts.append(
-            f"Участники одновременно наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)}). "
+            f"{participant_name} одновременно наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)}). "
             f"Это двойное давление — агрессивная ставка на рост."
         )
     elif long_chg < 0 and short_chg > 0:
         action_parts.append(
-            f"Участники сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)}). "
+            f"{participant_name} сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)}). "
             f"Это двойное медвежье давление — ставка на снижение."
         )
     elif long_chg > 0 and short_chg > 0:
         action_parts.append(
-            f"Участники наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)}). "
+            f"{participant_name} наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)}). "
             f"Рынок готовится к сильному движению, но направление пока неясно — растёт неопределённость."
         )
     elif long_chg < 0 and short_chg < 0:
         action_parts.append(
-            f"Участники сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)}). "
+            f"{participant_name} сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)}). "
             f"Идёт фиксация прибыли / выход из позиций — снижение активности."
         )
     else:
@@ -366,14 +366,17 @@ def generate_verdict(backtest_results, df):
             f"Текущее движение цены может быть вызвано закрытием позиций, а не открытием новых."
         )
 
-    if action_parts:
+    if len(action_parts) > 1:
         paragraphs.append(" ".join(action_parts))
 
     # ── 3. Signal-by-signal reasoning ─────────────────────────
+    if bullish_items or bearish_items:
+        paragraphs.append("<strong>🎯 Обнаруженные сигналы:</strong>")
+
     for entry in bullish_items + bearish_items:
-        sig_paragraph = _build_signal_reasoning(entry, df)
+        sig_paragraph = _build_signal_reasoning(entry, df, participant_name)
         if sig_paragraph:
-            paragraphs.append(sig_paragraph)
+            paragraphs.append("• " + sig_paragraph)
 
     # ── 4. Final verdict with scoring ─────────────────────────
     bullish_score = 0
@@ -400,31 +403,34 @@ def generate_verdict(backtest_results, df):
         return paragraphs, "neutral"
 
     bull_pct = (bullish_score / total) * 100
+    has_conflict = len(bullish_items) > 0 and len(bearish_items) > 0
 
-    # Build final conclusion
-    conclusion_parts = []
+    conclusion_parts = ["<strong>📋 ИТОГОВЫЙ ВЕРДИКТ:</strong>"]
+
+    if has_conflict:
+        conclusion_parts.append(
+            "⚠️ <strong>Смешанный фон (Конфликт сигналов).</strong> "
+            "В данный момент на рынке сталкиваются противоположные силы. "
+            "Механическое суммирование факторов здесь может быть обманчивым, так как "
+            "краткосрочный импульс участников рынка противоречит среднесрочным или историческим паттернам."
+        )
 
     if bull_pct >= 65:
-        verdict_class = "bullish"
+        verdict_class = "bullish" if not has_conflict else "neutral"
         conclusion_parts.append(
-            f"<strong>🟢 БЫЧИЙ УКЛОН.</strong> "
-            f"Совокупность бычьих факторов ({bull_pct:.0f}% суммарного веса) "
-            f"перевешивает медвежьи."
+            f"🟢 <strong>БЫЧИЙ ПЕРЕВЕС.</strong> Совокупность бычьих факторов ({bull_pct:.0f}% веса) преобладает."
         )
     elif bull_pct <= 35:
-        verdict_class = "bearish"
+        verdict_class = "bearish" if not has_conflict else "neutral"
         bear_pct = 100 - bull_pct
         conclusion_parts.append(
-            f"<strong>🔴 МЕДВЕЖИЙ УКЛОН.</strong> "
-            f"Совокупность медвежьих факторов ({bear_pct:.0f}% суммарного веса) "
-            f"перевешивает бычьи."
+            f"🔴 <strong>МЕДВЕЖИЙ ПЕРЕВЕС.</strong> Совокупность медвежьих факторов ({bear_pct:.0f}% веса) преобладает."
         )
     else:
         verdict_class = "neutral"
         conclusion_parts.append(
-            f"<strong>⚪ НЕЙТРАЛЬНО.</strong> "
-            f"Бычьи факторы ({bull_pct:.0f}%) и медвежьи ({100-bull_pct:.0f}%) "
-            f"примерно уравновешивают друг друга."
+            f"⚪ <strong>НЕЙТРАЛЬНО.</strong> Бычьи факторы ({bull_pct:.0f}%) и медвежьи ({100-bull_pct:.0f}%) "
+            f"уравновешивают друг друга. Ожидается боковик или высокая волатильность."
         )
 
     if strongest_signal and strongest_wr > 50:
@@ -434,23 +440,21 @@ def generate_verdict(backtest_results, df):
             s = bt["horizons"][h]
             dir_word = "роста" if strongest_signal["direction"] == "bullish" else "снижения"
             conclusion_parts.append(
-                f"Наиболее надёжный сигнал — <em>{strongest_signal['name']}</em> "
+                f"<br>Доминирующий паттерн — <em>{strongest_signal['name']}</em> "
                 f"(Win Rate {s['win_rate']}% на горизонте +{h} нед., "
                 f"средний return {'+' if s['mean_return'] > 0 else ''}{s['mean_return']}%). "
-                f"Исторически этот паттерн давал статистическое преимущество в сторону {dir_word}."
+                f"Исторически это давало статистическое преимущество в сторону {dir_word}."
             )
 
     # Risk caveat
-    if verdict_class != "neutral":
-        if strongest_signal and strongest_signal["bt"]:
-            h = strongest_signal["best_h"]
-            if h and h in strongest_signal["bt"]["horizons"]:
-                worst = strongest_signal["bt"]["horizons"][h]["min_return"]
-                conclusion_parts.append(
-                    f"⚠️ Риск: даже при статистическом преимуществе, "
-                    f"худший исторический случай показал return {'+' if worst > 0 else ''}{worst}% "
-                    f"на горизонте +{h} нед."
-                )
+    if strongest_signal and strongest_signal["bt"]:
+        h = strongest_signal["best_h"]
+        if h and h in strongest_signal["bt"]["horizons"]:
+            worst = strongest_signal["bt"]["horizons"][h]["min_return"]
+            conclusion_parts.append(
+                f"<br>⚠️ <em>Риск:</em> в худшем историческом случае по этому паттерну "
+                f"return составил {'+' if worst > 0 else ''}{worst}% на горизонте +{h} нед."
+            )
 
     paragraphs.append(" ".join(conclusion_parts))
     return paragraphs, verdict_class
@@ -466,7 +470,7 @@ def _get_signal_weight(entry):
     return 1.0, 50.0
 
 
-def _build_signal_reasoning(entry, df):
+def _build_signal_reasoning(entry, df, participant_name="Участники"):
     """Build a narrative paragraph for a single signal."""
     name = entry["name"]
     key = entry["key"]
@@ -495,7 +499,7 @@ def _build_signal_reasoning(entry, df):
         parts.append(
             f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
             f"текущая чистая позиция находится у нижней границы своего 52-недельного диапазона. "
-            f"Крупные игроки максимально пессимистичны. Контрарианская логика: когда все уже продали, "
+            f"{participant_name} максимально пессимистичны. Контрарианская логика: когда все уже продали, "
             f"продавать больше некому, и рынок часто разворачивается вверх."
         )
     elif key == "extreme_long":
@@ -503,19 +507,19 @@ def _build_signal_reasoning(entry, df):
         parts.append(
             f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
             f"текущая чистая позиция находится у верхней границы своего 52-недельного диапазона. "
-            f"Крупные игроки максимально оптимистичны. Контрарианская логика: когда все уже купили, "
+            f"{participant_name} максимально оптимистичны. Контрарианская логика: когда все уже купили, "
             f"покупать больше некому, и рынок часто разворачивается вниз."
         )
     elif key == "zero_cross_up":
         parts.append(
             f"Сигнал «{name}»: чистая позиция перешла из отрицательной в положительную зону. "
             f"Это означает, что суммарный объём лонгов впервые превысил шорты — "
-            f"участники «переключились» с медвежьей ставки на бычью."
+            f"{participant_name} «переключились» с медвежьей ставки на бычью."
         )
     elif key == "zero_cross_down":
         parts.append(
             f"Сигнал «{name}»: чистая позиция перешла из положительной в отрицательную зону. "
-            f"Шорты впервые превысили лонги — участники «переключились» на медвежью ставку."
+            f"Шорты впервые превысили лонги — {participant_name} «переключились» на медвежью ставку."
         )
     elif key == "sharp_net_increase":
         wow_val = latest.get("wow_change_net_pct_oi", 0)
@@ -523,7 +527,7 @@ def _build_signal_reasoning(entry, df):
             f"Сигнал «{name}»: недельное изменение net/OI = {wow_val:+.2f}%, "
             f"что входит в топ-5% исторических значений. "
             f"Такой резкий рост позиций указывает на агрессивное вхождение в лонг — "
-            f"крупные игроки увидели возможность и действуют решительно."
+            f"{participant_name} увидели возможность и действуют решительно."
         )
     elif key == "sharp_net_decrease":
         wow_val = latest.get("wow_change_net_pct_oi", 0)
@@ -535,13 +539,13 @@ def _build_signal_reasoning(entry, df):
     elif key == "bullish_divergence":
         parts.append(
             f"Сигнал «{name}»: цена актива снизилась за последние 4 недели, "
-            f"но крупные игроки наращивают чистую позицию. Это классическая дивергенция — "
-            f"«умные деньги» покупают на падении, ожидая разворот вверх."
+            f"но {participant_name} наращивают чистую позицию. Это классическая дивергенция — "
+            f"покупки на падении в ожидании разворота вверх."
         )
     elif key == "bearish_divergence":
         parts.append(
             f"Сигнал «{name}»: цена актива выросла за последние 4 недели, "
-            f"но крупные игроки сокращают чистую позицию. «Умные деньги» продают на росте — "
+            f"но {participant_name} сокращают чистую позицию. Это продажи на росте — "
             f"классический признак скрытого распределения перед снижением."
         )
 
@@ -560,7 +564,7 @@ def _build_signal_reasoning(entry, df):
     return " ".join(parts)
 
 
-def _build_no_signal_verdict(df):
+def _build_no_signal_verdict(df, participant_name="Участники"):
     """Build a detailed verdict when there are no active signals."""
     latest = df.iloc[-1]
     parts = []
@@ -605,14 +609,14 @@ def _build_no_signal_verdict(df):
     return parts
 
 
-def run_full_interpretation(df):
+def run_full_interpretation(df, participant_name="Участники"):
     """
     Main entry point. Returns a dict with all interpretation data.
     """
     active_keys = detect_active_signals(df)
     backtest_results = backtest_all_active_signals(df, active_keys)
-    situation_lines = generate_situation_text(df)
-    verdict_paragraphs, verdict_class = generate_verdict(backtest_results, df)
+    situation_lines = generate_situation_text(df, participant_name)
+    verdict_paragraphs, verdict_class = generate_verdict(backtest_results, df, participant_name)
 
     return {
         "situation": situation_lines,

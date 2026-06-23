@@ -718,11 +718,17 @@ elif app_mode == "📈 Интерактивный Дашборд":
                 for asset in parsed_assets:
                     if asset in MARKETS:
                         try:
-                            df_cot = get_market_analysis(asset, "Asset Manager")
-                            if not df_cot.empty:
-                                st.markdown(f"**{asset} (Asset Managers)**")
-                                fig_cot = draw_cot_chart(df_cot.tail(52), asset)
-                                st.plotly_chart(fig_cot, use_container_width=True)
+                            df_am = get_market_analysis(asset, "Asset Manager")
+                            if not df_am.empty:
+                                st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
+                                fig_am = draw_cot_chart(df_am.tail(52), asset)
+                                st.plotly_chart(fig_am, use_container_width=True)
+                                
+                            df_lf = get_market_analysis(asset, "Leveraged Funds")
+                            if not df_lf.empty:
+                                st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
+                                fig_lf = draw_cot_chart(df_lf.tail(52), asset)
+                                st.plotly_chart(fig_lf, use_container_width=True)
                         except:
                             pass
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('COT', 'Нет комментария')}</div>", unsafe_allow_html=True)
@@ -892,6 +898,9 @@ else:
     st.markdown(table_html, unsafe_allow_html=True)
     
     # 4. Interpretation Block with Backtesting
-    interp = run_full_interpretation(df)
+    part_name_ru = selected_display.split(" (")[1].replace(")", "") if " (" in selected_display else selected_display
+    interp = run_full_interpretation(df, participant_name=part_name_ru)
     interp_html = generate_interpretation_html(interp, selected_market, selected_display)
     st.markdown(interp_html, unsafe_allow_html=True)
+
+# Force reload 1
