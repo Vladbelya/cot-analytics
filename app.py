@@ -902,10 +902,10 @@ else:
     table_html = generate_minimal_html_table(df, selected_market, selected_display.split(" (")[0])
     st.markdown(table_html, unsafe_allow_html=True)
     
-    # 4. Interpretation Block with Backtesting
-    part_name_ru = selected_display.split(" (")[1].replace(")", "") if " (" in selected_display else selected_display
-    interp = run_full_interpretation(df, participant_name=part_name_ru)
-    interp_html = generate_interpretation_html(interp, selected_market, selected_display)
-    st.markdown(interp_html, unsafe_allow_html=True)
+    # 4. Advanced Holistic AI Report
+    st.markdown(f"### 🤖 Аналитический репорт ИИ")
+    from src.analytics import generate_holistic_report
+    holistic_report = generate_holistic_report(selected_market)
+    st.info(holistic_report)
 
 # Force reload 1
