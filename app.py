@@ -404,24 +404,35 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
     fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
     return fig
 
-def draw_flows_chart(plot_df, market_name, chart_height=450):
+def draw_flows_chart(plot_df, market_name, chart_height=650):
     fig = make_subplots(
-        rows=2, cols=1, 
+        rows=3, cols=1, 
         shared_xaxes=True, 
-        vertical_spacing=0.08,
-        row_heights=[0.55, 0.45]
+        vertical_spacing=0.06,
+        row_heights=[0.4, 0.3, 0.3]
     )
+    # Row 1: Price
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
     
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change"], name="Приток/Отток Лонгов", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change"], name="Приток/Отток Шортов", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=2, col=1)
+    # Row 2: Long Change + Anomalies
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change"], name="Лонги (Изменение)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_upper"], name="Верхняя граница (Лонг)", line=dict(color="rgba(46, 204, 113, 0.3)", width=1, dash="dash"), mode="lines"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_lower"], name="Нижняя граница (Лонг)", line=dict(color="rgba(46, 204, 113, 0.3)", width=1, dash="dash"), mode="lines", fill="tonexty", fillcolor="rgba(46, 204, 113, 0.05)"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_change_anomaly"], name="Аномальный Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
     
-    fig.update_layout(height=chart_height, template="plotly_dark", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
-    for r in [1, 2]:
+    # Row 3: Short Change + Anomalies
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change"], name="Шорты (Изменение)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_upper"], name="Верхняя граница (Шорт)", line=dict(color="rgba(231, 76, 60, 0.3)", width=1, dash="dash"), mode="lines"), row=3, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_lower"], name="Нижняя граница (Шорт)", line=dict(color="rgba(231, 76, 60, 0.3)", width=1, dash="dash"), mode="lines", fill="tonexty", fillcolor="rgba(231, 76, 60, 0.05)"), row=3, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_change_anomaly"], name="Аномальный Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
+    
+    fig.update_layout(height=chart_height, template="plotly_dark", showlegend=False, margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
+    for r in [1, 2, 3]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Приток / Отток", row=2, col=1)
+    fig.update_yaxes(title_text="Δ Лонги", row=2, col=1)
+    fig.update_yaxes(title_text="Δ Шорты", row=3, col=1)
     return fig
 
 # --- Sidebar ---

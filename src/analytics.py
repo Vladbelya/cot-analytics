@@ -75,6 +75,15 @@ def calculate_metrics(df):
     df["oi_change"] = df["open_interest"].diff(1).fillna(0.0)
     df["oi_change_pct"] = np.where(df["open_interest"].shift(1) > 0, (df["open_interest"].diff(1) / df["open_interest"].shift(1)) * 100, 0.0)
     
+    # Anomalies for Long and Short changes (2 standard deviations)
+    for col in ["long_change", "short_change"]:
+        mean_52w = df[col].rolling(window=52, min_periods=26).mean()
+        std_52w = df[col].rolling(window=52, min_periods=26).std()
+        df[f"{col}_upper"] = mean_52w + 2 * std_52w
+        df[f"{col}_lower"] = mean_52w - 2 * std_52w
+        df[f"{col}_anomaly"] = np.where((df[col] > df[f"{col}_upper"]) | (df[col] < df[f"{col}_lower"]), df[col], np.nan)
+
+    
     # 3. Rolling COT Indexes
     # COT Index = (Net - Min_Net_N) / (Max_Net_N - Min_Net_N) * 100
     for w in [13, 26, 52]:
