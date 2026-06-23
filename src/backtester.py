@@ -331,23 +331,19 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
     action_parts = ["<strong>⚡ Текущая динамика:</strong>"]
     if long_chg > 0 and short_chg < 0:
         action_parts.append(
-            f"{participant_name} одновременно наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)}). "
-            f"Это двойное давление — агрессивная ставка на рост."
+            f"{participant_name} наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)})."
         )
     elif long_chg < 0 and short_chg > 0:
         action_parts.append(
-            f"{participant_name} сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)}). "
-            f"Это двойное медвежье давление — ставка на снижение."
+            f"{participant_name} сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)})."
         )
     elif long_chg > 0 and short_chg > 0:
         action_parts.append(
-            f"{participant_name} наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)}). "
-            f"Рынок готовится к сильному движению, но направление пока неясно — растёт неопределённость."
+            f"{participant_name} наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)})."
         )
     elif long_chg < 0 and short_chg < 0:
         action_parts.append(
-            f"{participant_name} сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)}). "
-            f"Идёт фиксация прибыли / выход из позиций — снижение активности."
+            f"{participant_name} сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)})."
         )
     else:
         if net_chg > 0:
@@ -357,13 +353,11 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
 
     if oi_chg > 0:
         action_parts.append(
-            f"Открытый интерес вырос на {_fmt(oi_chg, True)} — в рынок поступают новые деньги, "
-            f"что подтверждает серьёзность текущего движения."
+            f"Открытый интерес вырос на {_fmt(oi_chg, True)}."
         )
     elif oi_chg < 0:
         action_parts.append(
-            f"Открытый интерес упал на {_fmt(oi_chg)} — участники выходят из рынка. "
-            f"Текущее движение цены может быть вызвано закрытием позиций, а не открытием новых."
+            f"Открытый интерес упал на {_fmt(oi_chg)}."
         )
 
     if len(action_parts) > 1:
@@ -410,9 +404,7 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
     if has_conflict:
         conclusion_parts.append(
             "⚠️ <strong>Смешанный фон (Конфликт сигналов).</strong> "
-            "В данный момент на рынке сталкиваются противоположные силы. "
-            "Механическое суммирование факторов здесь может быть обманчивым, так как "
-            "краткосрочный импульс участников рынка противоречит среднесрочным или историческим паттернам."
+            "В данный момент на рынке присутствуют как бычьи, так и медвежьи сигналы."
         )
 
     if bull_pct >= 65:
@@ -493,60 +485,49 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
 
     parts = []
 
-    # Context-specific reasoning
     if key == "extreme_short":
         cot_idx = latest.get("cot_index_52w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
-            f"текущая чистая позиция находится у нижней границы своего 52-недельного диапазона. "
-            f"{participant_name} максимально пессимистичны. Контрарианская логика: когда все уже продали, "
-            f"продавать больше некому, и рынок часто разворачивается вверх."
+            f"текущая чистая позиция находится у нижней границы своего 52-недельного диапазона."
         )
     elif key == "extreme_long":
         cot_idx = latest.get("cot_index_52w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
-            f"текущая чистая позиция находится у верхней границы своего 52-недельного диапазона. "
-            f"{participant_name} максимально оптимистичны. Контрарианская логика: когда все уже купили, "
-            f"покупать больше некому, и рынок часто разворачивается вниз."
+            f"текущая чистая позиция находится у верхней границы своего 52-недельного диапазона."
         )
     elif key == "zero_cross_up":
         parts.append(
             f"Сигнал «{name}»: чистая позиция перешла из отрицательной в положительную зону. "
-            f"Это означает, что суммарный объём лонгов впервые превысил шорты — "
-            f"{participant_name} «переключились» с медвежьей ставки на бычью."
+            f"Суммарный объём лонгов превысил шорты."
         )
     elif key == "zero_cross_down":
         parts.append(
             f"Сигнал «{name}»: чистая позиция перешла из положительной в отрицательную зону. "
-            f"Шорты впервые превысили лонги — {participant_name} «переключились» на медвежью ставку."
+            f"Суммарный объём шортов превысил лонги."
         )
     elif key == "sharp_net_increase":
         wow_val = latest.get("wow_change_net_pct_oi", 0)
         parts.append(
             f"Сигнал «{name}»: недельное изменение net/OI = {wow_val:+.2f}%, "
-            f"что входит в топ-5% исторических значений. "
-            f"Такой резкий рост позиций указывает на агрессивное вхождение в лонг — "
-            f"{participant_name} увидели возможность и действуют решительно."
+            f"что входит в топ-5% исторических значений."
         )
     elif key == "sharp_net_decrease":
         wow_val = latest.get("wow_change_net_pct_oi", 0)
         parts.append(
             f"Сигнал «{name}»: недельное изменение net/OI = {wow_val:+.2f}%, "
-            f"что входит в нижние 5% исторических значений. "
-            f"Такой резкий сброс указывает на агрессивный выход из лонгов или наращивание шортов."
+            f"что входит в нижние 5% исторических значений."
         )
     elif key == "bullish_divergence":
         parts.append(
             f"Сигнал «{name}»: цена актива снизилась за последние 4 недели, "
-            f"но {participant_name} наращивают чистую позицию. Это классическая дивергенция — "
-            f"покупки на падении в ожидании разворота вверх."
+            f"но {participant_name} наращивают чистую позицию."
         )
     elif key == "bearish_divergence":
         parts.append(
             f"Сигнал «{name}»: цена актива выросла за последние 4 недели, "
-            f"но {participant_name} сокращают чистую позицию. Это продажи на росте — "
-            f"классический признак скрытого распределения перед снижением."
+            f"но {participant_name} сокращают чистую позицию."
         )
 
     # Backtest reference
