@@ -57,6 +57,9 @@ def get_cot_data(assets_list):
             try:
                 df_am = get_market_analysis(asset, "Asset Manager")
                 df_lf = get_market_analysis(asset, "Leveraged Funds")
+                df_dl = get_market_analysis(asset, "Dealer")
+                df_rt = get_market_analysis(asset, "Retail")
+                
                 if not df_am.empty and not df_lf.empty:
                     latest_am = df_am.iloc[-1]
                     latest_lf = df_lf.iloc[-1]
@@ -71,6 +74,20 @@ def get_cot_data(assets_list):
                     basket += f"    Net: {latest_lf['net']:.0f} (Изменение за неделю: {latest_lf['wow_change_net']:+.0f})\n"
                     basket += f"    Лонги: {latest_lf['long']:.0f} (Приток/Отток: {latest_lf['long_change']:+.0f}) | Шорты: {latest_lf['short']:.0f} (Приток/Отток: {latest_lf['short_change']:+.0f})\n"
                     basket += f"    Z-Score: {latest_lf['net_zscore_52w']:.2f} std | Режим: {latest_lf['regime']}\n"
+                    
+                    if not df_dl.empty:
+                        latest_dl = df_dl.iloc[-1]
+                        basket += f"  Dealer Intermediary (Дилеры):\n"
+                        basket += f"    Net: {latest_dl['net']:.0f} (Изменение за неделю: {latest_dl['wow_change_net']:+.0f})\n"
+                        basket += f"    Лонги: {latest_dl['long']:.0f} (Приток/Отток: {latest_dl['long_change']:+.0f}) | Шорты: {latest_dl['short']:.0f} (Приток/Отток: {latest_dl['short_change']:+.0f})\n"
+                        basket += f"    Z-Score: {latest_dl['net_zscore_52w']:.2f} std | Режим: {latest_dl['regime']}\n"
+                        
+                    if not df_rt.empty:
+                        latest_rt = df_rt.iloc[-1]
+                        basket += f"  Retail (Мелкие спекулянты):\n"
+                        basket += f"    Net: {latest_rt['net']:.0f} (Изменение за неделю: {latest_rt['wow_change_net']:+.0f})\n"
+                        basket += f"    Лонги: {latest_rt['long']:.0f} (Приток/Отток: {latest_rt['long_change']:+.0f}) | Шорты: {latest_rt['short']:.0f} (Приток/Отток: {latest_rt['short_change']:+.0f})\n"
+                        basket += f"    Z-Score: {latest_rt['net_zscore_52w']:.2f} std | Режим: {latest_rt['regime']}\n"
                     has_data = True
             except Exception as e:
                 logging.error(f"COT basket error for {asset}: {e}")
