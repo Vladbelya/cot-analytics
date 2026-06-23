@@ -329,6 +329,10 @@ def generate_minimal_html_table(df, market_name, participant_name):
         dt_str = row["report_date"].strftime("%d.%m.%Y")
         price_str = f"{row['close']:,.2f}".replace(",", " ")
         
+        net = row["net"]
+        net_str = fmt_num(net, show_sign=True)
+        net_cls = "net-positive" if net >= 0 else "net-negative"
+        
         long_pos = row["long"]
         short_pos = row["short"]
         long_change = row["long_change"]
