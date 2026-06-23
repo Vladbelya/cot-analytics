@@ -88,6 +88,10 @@ def calculate_metrics(df):
     max_s = df['short'].rolling(lookback, min_periods=52).max()
     df['short_index'] = np.where((max_s - min_s) > 0, (df['short'] - min_s) / (max_s - min_s) * 100, 50.0)
     
+    # Local WoW Spikes
+    df['long_wow_pct'] = np.where(df['long'].shift(1) > 0, (df['long'] - df['long'].shift(1)) / df['long'].shift(1) * 100, 0.0)
+    df['short_wow_pct'] = np.where(df['short'].shift(1) > 0, (df['short'] - df['short'].shift(1)) / df['short'].shift(1) * 100, 0.0)
+    
     # Anomaly markers (Extreme zones: >90 and <10)
     df["long_index_anomaly"] = np.where((df["long_index"] >= 90) | (df["long_index"] <= 10), df["long_index"], np.nan)
     df["short_index_anomaly"] = np.where((df["short_index"] >= 90) | (df["short_index"] <= 10), df["short_index"], np.nan)
