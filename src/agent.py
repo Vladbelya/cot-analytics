@@ -92,7 +92,7 @@ You MUST return your response strictly matching this JSON schema. Do not write a
     "M2SL": "Short analysis of M2 Money Supply.",
     "RATES": "Short analysis of DGS10 and DGS2 (Rates & Yield Curve).",
     "INFLATION": "Short analysis of CPIAUCSL and UNRATE.",
-    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators).",
+    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators). MUST explicitly compare with the previous report, discussing inflows or outflows of longs and shorts.",
     "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies).",
     "ETFS": "Analysis of ETF volume anomalies."
   },
@@ -385,7 +385,7 @@ JSON STRUCTURE REQUIRED:
     "M2SL": "Short analysis of M2 Money Supply.",
     "RATES": "Short analysis of DGS10 and DGS2 (Rates & Yield Curve).",
     "INFLATION": "Short analysis of CPIAUCSL and UNRATE.",
-    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators).",
+    "COT": "Analysis of COT positioning, explicitly separating and comparing the positions of Asset Managers (Institutional) and Leveraged Funds (Speculators). MUST explicitly compare with the previous report, discussing inflows or outflows of longs and shorts.",
     "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies).",
     "ETFS": "Analysis of ETF volume anomalies."
   }},

@@ -63,11 +63,13 @@ def get_cot_data(assets_list):
                     
                     basket += f"[{asset}]\n"
                     basket += f"  Asset Manager (Институционалы):\n"
-                    basket += f"    Net: {latest_am['net']:.0f} (Изменение за неделю: {latest_am['wow_change_net']:.0f})\n"
+                    basket += f"    Net: {latest_am['net']:.0f} (Изменение за неделю: {latest_am['wow_change_net']:+.0f})\n"
+                    basket += f"    Лонги: {latest_am['long']:.0f} (Приток/Отток: {latest_am['long_change']:+.0f}) | Шорты: {latest_am['short']:.0f} (Приток/Отток: {latest_am['short_change']:+.0f})\n"
                     basket += f"    Z-Score: {latest_am['net_zscore_52w']:.2f} std | Режим: {latest_am['regime']}\n"
                     
                     basket += f"  Leveraged Funds (Спекулянты):\n"
-                    basket += f"    Net: {latest_lf['net']:.0f} (Изменение за неделю: {latest_lf['wow_change_net']:.0f})\n"
+                    basket += f"    Net: {latest_lf['net']:.0f} (Изменение за неделю: {latest_lf['wow_change_net']:+.0f})\n"
+                    basket += f"    Лонги: {latest_lf['long']:.0f} (Приток/Отток: {latest_lf['long_change']:+.0f}) | Шорты: {latest_lf['short']:.0f} (Приток/Отток: {latest_lf['short_change']:+.0f})\n"
                     basket += f"    Z-Score: {latest_lf['net_zscore_52w']:.2f} std | Режим: {latest_lf['regime']}\n"
                     has_data = True
             except Exception as e:

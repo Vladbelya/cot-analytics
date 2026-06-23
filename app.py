@@ -455,15 +455,17 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
         row_heights=[0.55, 0.45]
     )
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
-    net_values = plot_df["net"]
-    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_values]
-    fig.add_trace(go.Bar(x=plot_df["report_date"], y=net_values, name="Разница (Long - Short)", marker_color=bar_colors, marker_line_width=0, hovertemplate="Дата: %{x}<br>Разница: %{y:,.0f}<extra></extra>"), row=2, col=1)
-    fig.update_layout(height=chart_height, template="plotly_dark", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
+    
+    fig.add_trace(go.Bar(x=plot_df["report_date"], y=plot_df["long"], name="Лонги", marker_color="#10b981", marker_line_width=0, opacity=0.85, hovertemplate="Дата: %{x}<br>Лонги: %{y:,.0f}<extra></extra>"), row=2, col=1)
+    fig.add_trace(go.Bar(x=plot_df["report_date"], y=-plot_df["short"], name="Шорты", marker_color="#ef4444", marker_line_width=0, opacity=0.85, hovertemplate="Дата: %{x}<br>Шорты: %{customdata:,.0f}<extra></extra>", customdata=plot_df["short"]), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["net"], name="Чистая позиция (Net)", mode="lines+markers", marker=dict(size=4), line=dict(color="#f1c40f", width=2), hovertemplate="Дата: %{x}<br>Net: %{y:,.0f}<extra></extra>"), row=2, col=1)
+    
+    fig.update_layout(height=chart_height, template="plotly_dark", barmode="relative", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
     for r in [1, 2]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
+    fig.update_yaxes(title_text="Позиции", row=2, col=1)
     return fig
 
 # --- Sidebar ---
