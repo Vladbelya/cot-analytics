@@ -317,6 +317,8 @@ def generate_minimal_html_table(df, market_name, participant_name):
 <tr>
 <th style="text-align: left; font-size: 0.85em; color: #6b7280;">ДАТА</th>
 <th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЦЕНА АКТИВА</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЛОНГИ (LONG)</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ШОРТЫ (SHORT)</th>
 <th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЧИСТАЯ ПОЗИЦИЯ (LONG - SHORT)</th>
 </tr>
 </thead>
@@ -327,14 +329,27 @@ def generate_minimal_html_table(df, market_name, participant_name):
         dt_str = row["report_date"].strftime("%d.%m.%Y")
         price_str = f"{row['close']:,.2f}".replace(",", " ")
         
-        net = row["net"]
-        net_str = fmt_num(net, show_sign=True)
-        net_cls = "net-positive" if net >= 0 else "net-negative"
+        long_pos = row["long"]
+        short_pos = row["short"]
+        long_change = row["long_change"]
+        short_change = row["short_change"]
+        
+        long_str = f"{long_pos:,.0f}".replace(",", " ")
+        short_str = f"{short_pos:,.0f}".replace(",", " ")
+        
+        long_change_str = fmt_num(long_change, show_sign=True)
+        short_change_str = fmt_num(short_change, show_sign=True)
         
         html += f"""
 <tr>
 <td class="date-cell" style="text-align: left; padding: 10px 16px;">{dt_str}</td>
 <td class="font-mono" style="text-align: right; padding: 10px 16px;">{price_str}</td>
+<td style="text-align: right; padding: 10px 16px;">
+<span class="font-mono" style="color: #10b981;">{long_str}</span> <span style="font-size: 0.85em; color: #6b7280;">({long_change_str})</span>
+</td>
+<td style="text-align: right; padding: 10px 16px;">
+<span class="font-mono" style="color: #ef4444;">{short_str}</span> <span style="font-size: 0.85em; color: #6b7280;">({short_change_str})</span>
+</td>
 <td style="text-align: right; padding: 10px 16px;">
 <span class="{net_cls} font-mono" style="padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 110px; text-align: right;">{net_str}</span>
 </td>
@@ -456,16 +471,16 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
     )
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
     
-    fig.add_trace(go.Bar(x=plot_df["report_date"], y=plot_df["long"], name="Лонги", marker_color="#10b981", marker_line_width=0, opacity=0.85, hovertemplate="Дата: %{x}<br>Лонги: %{y:,.0f}<extra></extra>"), row=2, col=1)
-    fig.add_trace(go.Bar(x=plot_df["report_date"], y=-plot_df["short"], name="Шорты", marker_color="#ef4444", marker_line_width=0, opacity=0.85, hovertemplate="Дата: %{x}<br>Шорты: %{customdata:,.0f}<extra></extra>", customdata=plot_df["short"]), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["net"], name="Чистая позиция (Net)", mode="lines+markers", marker=dict(size=4), line=dict(color="#f1c40f", width=2), hovertemplate="Дата: %{x}<br>Net: %{y:,.0f}<extra></extra>"), row=2, col=1)
+    net_values = plot_df["net"]
+    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_values]
+    fig.add_trace(go.Bar(x=plot_df["report_date"], y=net_values, name="Разница (Long - Short)", marker_color=bar_colors, marker_line_width=0, hovertemplate="Дата: %{x}<br>Разница: %{y:,.0f}<extra></extra>"), row=2, col=1)
     
-    fig.update_layout(height=chart_height, template="plotly_dark", barmode="relative", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
+    fig.update_layout(height=chart_height, template="plotly_dark", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
     for r in [1, 2]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Позиции", row=2, col=1)
+    fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
     return fig
 
 # --- Sidebar ---
