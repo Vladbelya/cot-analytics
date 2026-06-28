@@ -96,14 +96,15 @@ def calculate_metrics(df):
     df["long_index_anomaly"] = np.where((df["long_index"] >= 90) | (df["long_index"] <= 10), df["long_index"], np.nan)
     df["short_index_anomaly"] = np.where((df["short_index"] >= 90) | (df["short_index"] <= 10), df["short_index"], np.nan)
 
-    
-    # 3. Rolling COT Indexes
-    # COT Index = (Net - Min_Net_N) / (Max_Net_N - Min_Net_N) * 100
+    # 3. Rolling COT Indexes using Rank + Causal Percentile
+    # Percentile = (number of values <= current) / window_size * 100
+    def rank_causal_percentile(window):
+        current = window[-1]
+        count_le = np.sum(window <= current)
+        return (count_le / len(window)) * 100
+
     for w in [13, 26, 52]:
-        rolling_min = df["net"].rolling(window=w, min_periods=min(w, 8)).min()
-        rolling_max = df["net"].rolling(window=w, min_periods=min(w, 8)).max()
-        denom = rolling_max - rolling_min
-        df[f"cot_index_{w}w"] = np.where(denom != 0, ((df["net"] - rolling_min) / denom) * 100, 50.0)
+        df[f"cot_index_{w}w"] = df["net"].rolling(window=w, min_periods=min(w, 8)).apply(rank_causal_percentile, raw=True)
         
     # 4. Z-Score of Net Position (52w rolling) and anomalous bands (+-2 std)
     rolling_mean = df["net"].rolling(window=52, min_periods=26).mean()
