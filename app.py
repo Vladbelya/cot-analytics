@@ -460,9 +460,9 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
     fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=2, col=1)
     fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
     
-    # Annotate Row 2 lines for clarity
-    fig.add_annotation(xref="paper", yref="y2", x=0.01, y=93, text="Перекупленность (Спекулянты в макс. Лонге)", showarrow=False, font=dict(color="rgba(231, 76, 60, 0.8)", size=10), row=2, col=1)
-    fig.add_annotation(xref="paper", yref="y2", x=0.01, y=7, text="Перепроданность (Спекулянты в макс. Шорте)", showarrow=False, font=dict(color="rgba(46, 204, 113, 0.8)", size=10), row=2, col=1)
+    # Annotate Row 2 lines for clarity using domain coordinates to prevent x-axis stretching to 1970
+    fig.add_annotation(xref="x2 domain", yref="y2", x=0.01, y=93, text="Перекупленность (Спекулянты в макс. Лонге)", showarrow=False, font=dict(color="rgba(231, 76, 60, 0.8)", size=10))
+    fig.add_annotation(xref="x2 domain", yref="y2", x=0.01, y=7, text="Перепроданность (Спекулянты в макс. Шорте)", showarrow=False, font=dict(color="rgba(46, 204, 113, 0.8)", size=10))
     
     # Anomalies markers on Row 2
     anomalies_dates = plot_df[plot_df["net_index_anomaly_156w"].notna()]["report_date"]
