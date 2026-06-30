@@ -105,11 +105,13 @@ def _compute_forward_returns(df):
     """
     Pre-compute forward percentage returns for all horizons.
     Returns a dict of horizon -> Series of % returns.
+    Accounts for 1-week publication delay: Entry is at Tuesday T+1, Exit is at Tuesday T+1+H.
     """
     fwd = {}
+    entry_price = df["close"].shift(-1)
     for h in FORWARD_HORIZONS:
-        future_price = df["close"].shift(-h)
-        fwd[h] = ((future_price - df["close"]) / df["close"]) * 100.0
+        exit_price = df["close"].shift(-(1 + h))
+        fwd[h] = ((exit_price - entry_price) / entry_price) * 100.0
     return fwd
 
 def backtest_signal(df, signal_series, direction, horizons=None):
@@ -121,8 +123,9 @@ def backtest_signal(df, signal_series, direction, horizons=None):
 
     # Only use signals that have enough forward data
     max_horizon = max(horizons)
+    limit = 1 + max_horizon
     usable_mask = signal_series & signal_series.index.isin(
-        df.index[:-max_horizon] if len(df) > max_horizon else pd.Index([])
+        df.index[:-limit] if len(df) > limit else pd.Index([])
     )
 
     # Get indices where signal fires and we have forward data
