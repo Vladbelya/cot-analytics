@@ -6,6 +6,18 @@ from plotly.subplots import make_subplots
 import os
 from datetime import datetime
 
+import importlib
+import src.config
+import src.pipeline
+import src.analytics
+import src.backtester
+
+# Force reload custom modules to fix Streamlit Cloud memory caching bugs
+importlib.reload(src.config)
+importlib.reload(src.pipeline)
+importlib.reload(src.analytics)
+importlib.reload(src.backtester)
+
 from src.config import MARKETS, DATA_DIR_COT, DATA_DIR_PRICES, PARTICIPANTS_MAP
 from src.pipeline import update_all_data, get_data_freshness
 from src.analytics import get_market_analysis
