@@ -416,12 +416,12 @@ def draw_cot_chart(plot_df, market_name, chart_height=450):
     fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
     return fig
 
-def draw_flows_chart(plot_df, market_name, chart_height=650):
+def draw_flows_chart(plot_df, market_name, chart_height=750):
     fig = make_subplots(
-        rows=3, cols=1, 
+        rows=4, cols=1, 
         shared_xaxes=True, 
-        vertical_spacing=0.06,
-        row_heights=[0.4, 0.3, 0.3]
+        vertical_spacing=0.04,
+        row_heights=[0.31, 0.23, 0.23, 0.23]
     )
     
     # --- Dynamic WoW Net % OI Spike Overlays (Top/Bottom 5% changes) ---
@@ -432,42 +432,92 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
         for _, row in plot_df.iterrows():
             val = row.get("wow_change_net_pct_oi", 0)
             if val >= q95:
-                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.15)", row="all", col=1, layer="below")
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.12)", row="all", col=1, layer="below")
             elif val <= q05:
-                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.15)", row="all", col=1, layer="below")
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.12)", row="all", col=1, layer="below")
 
     # Row 1: Price
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=plot_df["close"], 
+        name="Цена", 
+        line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), 
+        mode="lines"
+    ), row=1, col=1)
     
-    # Row 2: Standard Net % of OI COT Index (3-year and 1-year)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["cot_index_net_pct_oi_156w"], name="COT Index Net % OI (3г)", line=dict(color="#00f0ff", width=2.0), mode="lines"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["cot_index_net_pct_oi_52w"], name="COT Index Net % OI (1г)", line=dict(color="#d000ff", width=1.5, dash="dash"), mode="lines"), row=2, col=1)
+    # Row 2: Clean COT Index Net % OI (3-year)
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=plot_df["cot_index_net_pct_oi_156w"], 
+        name="COT Index Net % OI (3г)", 
+        line=dict(color="#00f0ff", width=2.0), 
+        mode="lines",
+        hovertemplate="Дата: %{x}<br>Индекс: %{y:.1f}%<extra></extra>"
+    ), row=2, col=1)
     
-    # Thresholds for extreme positioning
-    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=2, col=1)
-    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=2, col=1)
+    # Neutral line at 50%
+    fig.add_hline(y=50.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.2)", row=2, col=1)
+    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=2, col=1)
+    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
     
     # Anomalies markers on 3-year Net % OI COT Index
     anomalies_dates = plot_df[plot_df["net_index_anomaly_156w"].notna()]["report_date"]
     anomalies_vals = plot_df[plot_df["net_index_anomaly_156w"].notna()]["cot_index_net_pct_oi_156w"]
-    fig.add_trace(go.Scatter(x=anomalies_dates, y=anomalies_vals, name="Экстремум Net % OI 3г", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
+    fig.add_trace(go.Scatter(
+        x=anomalies_dates, 
+        y=anomalies_vals, 
+        name="Экстремум Net % OI 3г", 
+        mode="markers", 
+        marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1)),
+        hovertemplate="Экстремум!<br>Дата: %{x}<br>Значение: %{y:.1f}%<extra></extra>"
+    ), row=2, col=1)
     
-    # Row 3: Net Position as % of Open Interest (Net % OI)
-    net_pct_oi = plot_df["net_pct_oi"]
-    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_pct_oi]
-    fig.add_trace(go.Bar(x=plot_df["report_date"], y=net_pct_oi, name="Net % of Open Interest", marker_color=bar_colors, marker_line_width=0, hovertemplate="Дата: %{x}<br>Net % OI: %{y:.2f}%<extra></extra>"), row=3, col=1)
-    fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
+    # Row 3: Long % of OI (🟢 Green line/area)
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=plot_df["long_pct_oi"], 
+        name="Long % of OI", 
+        line=dict(color="#2ecc71", width=2.0), 
+        fill="tozeroy",
+        fillcolor="rgba(46, 204, 113, 0.08)",
+        mode="lines",
+        hovertemplate="Дата: %{x}<br>Long % OI: %{y:.2f}%<extra></extra>"
+    ), row=3, col=1)
     
-    fig.update_layout(height=chart_height, template="plotly_dark", showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
-    for r in [1, 2, 3]:
+    # Row 4: Short % of OI (🔴 Red line/area)
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=plot_df["short_pct_oi"], 
+        name="Short % of OI", 
+        line=dict(color="#e74c3c", width=2.0), 
+        fill="tozeroy",
+        fillcolor="rgba(231, 76, 60, 0.08)",
+        mode="lines",
+        hovertemplate="Дата: %{x}<br>Short % OI: %{y:.2f}%<extra></extra>"
+    ), row=4, col=1)
+    
+    fig.update_layout(
+        height=chart_height, 
+        template="plotly_dark", 
+        showlegend=True, 
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), 
+        margin=dict(l=20, r=20, t=30, b=20), 
+        hovermode="x unified", 
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(0,0,0,0)", 
+        hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter")
+    )
+    
+    for r in [1, 2, 3, 4]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         
     fig.update_yaxes(title_text="Цена", row=1, col=1)
-    fig.update_yaxes(title_text="COT Index Net % OI (%)", range=[-5, 105], row=2, col=1)
-    fig.update_yaxes(title_text="Net Position % OI", row=3, col=1)
+    fig.update_yaxes(title_text="COT Index (%)", range=[-5, 105], row=2, col=1)
+    fig.update_yaxes(title_text="Long % of OI", row=3, col=1)
+    fig.update_yaxes(title_text="Short % of OI", row=4, col=1)
+    
     return fig
-
 # --- Sidebar ---
 st.sidebar.title("⚡ Терминал Кот")
 
@@ -898,7 +948,7 @@ else:
     st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")
-    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=550)
+    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=750)
     st.plotly_chart(fig2, use_container_width=True)
     
     # 3. Simplified Historical HTML Table
