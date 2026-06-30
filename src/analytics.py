@@ -67,6 +67,8 @@ def calculate_metrics(df):
     # 1. Base calculations
     df["net"] = df["long"] - df["short"]
     df["net_pct_oi"] = np.where(df["open_interest"] != 0, (df["net"] / df["open_interest"]) * 100, 0.0)
+    df["long_pct_oi"] = np.where(df["open_interest"] != 0, (df["long"] / df["open_interest"]) * 100, 0.0)
+    df["short_pct_oi"] = np.where(df["open_interest"] != 0, (df["short"] / df["open_interest"]) * 100, 0.0)
     df["spec_ratio"] = np.where(df["short"] > 0, df["long"] / df["short"], df["long"])
     
     # 2. WoW Changes
