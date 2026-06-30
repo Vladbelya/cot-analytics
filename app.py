@@ -286,7 +286,7 @@ st.markdown("""
 # Helper to check if data files exist
 def check_data_exists():
     for market_name in MARKETS.keys():
-        cot_file = os.path.join(DATA_DIR_COT, f"{market_name}.csv")
+        cot_file = os.path.join(DATA_DIR_COT, f"{market_name}_futures.csv")
         price_file = os.path.join(DATA_DIR_PRICES, f"{market_name}.csv")
         if not os.path.exists(cot_file) or not os.path.exists(price_file):
             return False
@@ -412,60 +412,48 @@ def draw_flows_chart(plot_df, market_name, chart_height=650):
         row_heights=[0.4, 0.3, 0.3]
     )
     
-    # --- Local WoW Spike Overlays ---
-    for _, row in plot_df.iterrows():
-        l_pct = row.get("long_wow_pct", 0)
-        s_pct = row.get("short_wow_pct", 0)
-        
-        # Long Spikes (Red overlays indicating Overbought / Bearish reversal)
-        if l_pct >= 20:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.4)", row="all", col=1, layer="below")
-        elif l_pct >= 15:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.2)", row="all", col=1, layer="below")
-        elif l_pct >= 10:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.08)", row="all", col=1, layer="below")
-            
-        # Short Spikes (Green overlays indicating Oversold / Bullish reversal)
-        if s_pct >= 20:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.4)", row="all", col=1, layer="below")
-        elif s_pct >= 15:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.2)", row="all", col=1, layer="below")
-        elif s_pct >= 10:
-            fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.08)", row="all", col=1, layer="below")
+    # --- Dynamic WoW Net % OI Spike Overlays (Top/Bottom 5% changes) ---
+    wow_series = plot_df["wow_change_net_pct_oi"].dropna()
+    if len(wow_series) > 10:
+        q95 = wow_series.quantile(0.95)
+        q05 = wow_series.quantile(0.05)
+        for _, row in plot_df.iterrows():
+            val = row.get("wow_change_net_pct_oi", 0)
+            if val >= q95:
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.15)", row="all", col=1, layer="below")
+            elif val <= q05:
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.15)", row="all", col=1, layer="below")
 
     # Row 1: Price
     fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
     
-    # Row 2: Long COT Index
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["long_index"], name="COT Index (Лонги)", line=dict(color="#2ecc71", width=2.0), mode="lines"), row=2, col=1)
-    # Thresholds
-    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=2, col=1)
-    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=2, col=1)
+    # Row 2: Standard Net % of OI COT Index (3-year and 1-year)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["cot_index_net_pct_oi_156w"], name="COT Index Net % OI (3г)", line=dict(color="#00f0ff", width=2.0), mode="lines"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["cot_index_net_pct_oi_52w"], name="COT Index Net % OI (1г)", line=dict(color="#d000ff", width=1.5, dash="dash"), mode="lines"), row=2, col=1)
     
-    # Anomalies markers
-    long_anomalies_dates = plot_df[plot_df["long_index_anomaly"].notna()]["report_date"]
-    long_anomalies_vals = plot_df[plot_df["long_index_anomaly"].notna()]["long_index"]
-    fig.add_trace(go.Scatter(x=long_anomalies_dates, y=long_anomalies_vals, name="Экстремум Лонг", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
+    # Thresholds for extreme positioning
+    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=2, col=1)
+    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=2, col=1)
     
-    # Row 3: Short COT Index
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["short_index"], name="COT Index (Шорты)", line=dict(color="#e74c3c", width=2.0), mode="lines"), row=3, col=1)
-    # Thresholds
-    fig.add_hline(y=90.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.5)", row=3, col=1)
-    fig.add_hline(y=10.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.5)", row=3, col=1)
+    # Anomalies markers on 3-year Net % OI COT Index
+    anomalies_dates = plot_df[plot_df["net_index_anomaly_156w"].notna()]["report_date"]
+    anomalies_vals = plot_df[plot_df["net_index_anomaly_156w"].notna()]["cot_index_net_pct_oi_156w"]
+    fig.add_trace(go.Scatter(x=anomalies_dates, y=anomalies_vals, name="Экстремум Net % OI 3г", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=2, col=1)
     
-    # Anomalies markers
-    short_anomalies_dates = plot_df[plot_df["short_index_anomaly"].notna()]["report_date"]
-    short_anomalies_vals = plot_df[plot_df["short_index_anomaly"].notna()]["short_index"]
-    fig.add_trace(go.Scatter(x=short_anomalies_dates, y=short_anomalies_vals, name="Экстремум Шорт", mode="markers", marker=dict(color="#f1c40f", size=8, symbol="star", line=dict(color="#ffffff", width=1))), row=3, col=1)
+    # Row 3: Net Position as % of Open Interest (Net % OI)
+    net_pct_oi = plot_df["net_pct_oi"]
+    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_pct_oi]
+    fig.add_trace(go.Bar(x=plot_df["report_date"], y=net_pct_oi, name="Net % of Open Interest", marker_color=bar_colors, marker_line_width=0, hovertemplate="Дата: %{x}<br>Net % OI: %{y:.2f}%<extra></extra>"), row=3, col=1)
+    fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
     
-    fig.update_layout(height=chart_height, template="plotly_dark", showlegend=False, margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
+    fig.update_layout(height=chart_height, template="plotly_dark", showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
     for r in [1, 2, 3]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         
     fig.update_yaxes(title_text="Цена", row=1, col=1)
-    fig.update_yaxes(title_text="COT Index (Long)", range=[-5, 105], row=2, col=1)
-    fig.update_yaxes(title_text="COT Index (Short)", range=[-5, 105], row=3, col=1)
+    fig.update_yaxes(title_text="COT Index Net % OI (%)", range=[-5, 105], row=2, col=1)
+    fig.update_yaxes(title_text="Net Position % OI", row=3, col=1)
     return fig
 
 # --- Sidebar ---
@@ -720,13 +708,13 @@ elif app_mode == "📈 Интерактивный Дашборд":
                 for asset in parsed_assets:
                     if asset in MARKETS:
                         try:
-                            df_am = get_market_analysis(asset, "Asset Manager")
+                            df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
                             if not df_am.empty:
                                 st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
                                 fig_am = draw_cot_chart(df_am.tail(52), asset)
                                 st.plotly_chart(fig_am, use_container_width=True)
                                 
-                            df_lf = get_market_analysis(asset, "Leveraged Funds")
+                            df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
                             if not df_lf.empty:
                                 st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
                                 fig_lf = draw_cot_chart(df_lf.tail(52), asset)
@@ -834,6 +822,9 @@ selected_market = st.sidebar.selectbox("Выберите рынок:", list(MARK
 selected_display = st.sidebar.selectbox("Группа трейдеров:", list(PARTICIPANT_DISPLAY.keys()), index=0)
 tff_participant = PARTICIPANT_DISPLAY[selected_display]
 
+selected_report_type = st.sidebar.radio("Тип отчета COT:", ["Только фьючерсы", "Фьючерсы + Опционы"], index=1)
+use_combined = (selected_report_type == "Фьючерсы + Опционы")
+
 # Select period
 period_options = {
     "1 месяц (4 недели)": 4,
@@ -879,7 +870,7 @@ if not check_data_exists():
     st.info("👋 Локальные файлы данных не обнаружены. Пожалуйста, нажмите кнопку **'Обновить базу данных'** на панели слева для скачивания истории.")
 else:
     # Load and calculate metrics for the selected market
-    df = get_market_analysis(selected_market, tff_participant)
+    df = get_market_analysis(selected_market, tff_participant, use_combined=use_combined)
     
     st.title(f"📊 {selected_market}")
     st.caption(f"Рынок: **{MARKETS[selected_market]['display_name']}** | Категория: **{selected_display}**")
@@ -894,7 +885,7 @@ else:
     fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
     st.plotly_chart(fig, use_container_width=True)
     
-    st.markdown("### 🌊 Осциллятор Настроений (COT Index 156-week)")
+    st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")
     fig2 = draw_flows_chart(plot_df, selected_market, chart_height=550)
     st.plotly_chart(fig2, use_container_width=True)
     
@@ -905,7 +896,7 @@ else:
     # 4. Advanced Holistic AI Report
     st.markdown(f"### 🤖 Аналитический репорт ИИ")
     from src.analytics import generate_holistic_report
-    holistic_report = generate_holistic_report(selected_market)
+    holistic_report = generate_holistic_report(selected_market, use_combined=use_combined)
     st.info(holistic_report)
 
 # Force reload 1

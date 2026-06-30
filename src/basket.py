@@ -1,64 +1,73 @@
-import json
 import logging
-import yfinance as yf
+import pandas as pd
+import numpy as np
 from src.config import MARKETS
 
 def get_price_and_news_data(assets_list):
     """Fetches 5-day price action and top news headlines for the given assets and macro proxies."""
-    macro_tickers = {
-        "^GSPC": "S&P 500 (Market Benchmark)",
-        "DX-Y.NYB": "US Dollar Index (DXY)",
-        "^TNX": "10-Year Treasury Yield (Rates)",
-        "GC=F": "Gold (Inflation/Risk Hedge)"
+    import yfinance as yf
+    basket = "=== ДИНАМИКА ЦЕН И НОВОСТНЫЕ ЗАГОЛОВКИ ===\n"
+    
+    # Standard tickers to track
+    tickers = {
+        "S&P 500": "^GSPC",
+        "Nasdaq": "^NDX",
+        "EURUSD": "EURUSD=X",
+        "Gold": "GC=F",
+        "10Y Treasury": "^TNX",
+        "DXY": "DX-Y.NYB",
+        "Bitcoin": "BTC-USD"
     }
     
-    basket = "=== ЦЕНЫ И НОВОСТИ ===\n"
-    all_assets = []
-    
-    for a in assets_list:
-        a_strip = a.strip()
-        if not a_strip: continue
-        tk = MARKETS.get(a_strip, {}).get("ticker", a_strip)
-        all_assets.append((a_strip, tk))
-        
-    for tk, desc in macro_tickers.items():
-        if not any(t == tk for _, t in all_assets):
-            all_assets.append((desc, tk))
+    # Add user requested assets if not in default
+    for asset in assets_list:
+        if asset in MARKETS:
+            tickers[asset] = MARKETS[asset]["ticker"]
+        elif asset not in tickers:
+            tickers[asset] = asset
             
-    for asset_name, ticker in all_assets:
+    for name, symbol in tickers.items():
         try:
-            tk = yf.Ticker(ticker)
-            hist = tk.history(period="5d")
-            if not hist.empty:
-                last_price = hist['Close'].iloc[-1]
-                prev_price = hist['Close'].iloc[0]
-                pct_change = ((last_price - prev_price) / prev_price) * 100
-                
-                basket += f"[{asset_name} ({ticker})] Текущая цена: {last_price:.2f} | Изменение за 5д: {pct_change:+.2f}%\n"
+            ticker_obj = yf.Ticker(symbol)
+            hist = ticker_obj.history(period="5d")
             
-            news = tk.news
-            if news:
-                basket += f"[{asset_name}] Заголовки:\n"
-                for item in news[:3]:
-                    basket += f"  - {item.get('title', '')}\n"
+            if not hist.empty:
+                basket += f"[{name} ({symbol})] Последние 5 дней закрытия:\n"
+                for dt, row in hist.iterrows():
+                    date_str = dt.strftime('%Y-%m-%d')
+                    basket += f"  - {date_str}: Close = {row['Close']:.2f} (Vol = {row['Volume']:,.0f})\n"
+                
+                # Fetch news
+                news = ticker_obj.news
+                if news:
+                    basket += f"[{name}] Заголовки новостей:\n"
+                    for item in news[:3]:
+                        basket += f"  - {item.get('title', '')}\n"
         except Exception:
             continue
             
     return basket + "\n"
 
-def get_cot_data(assets_list):
+def get_cot_data(assets_list, use_combined=True):
     """Fetches COT data (Z-Scores, Net positions) for the requested assets."""
     from src.analytics import get_market_analysis
-    basket = "=== COT ПОЗИЦИОНИРОВАНИЕ (УМНЫЕ И ДУРНЫЕ ДЕНЬГИ) ===\n"
+    basket = "=== COT ПОЗИЦИОНИРОВАНИЕ (УМНЫЕ И ДУРНЫЕ ДЕНЬГИ - 156w LOOKBACK) ===\n"
     has_data = False
     
     for asset in assets_list:
         if asset in MARKETS:
             try:
-                df_am = get_market_analysis(asset, "Asset Manager")
-                df_lf = get_market_analysis(asset, "Leveraged Funds")
-                df_dl = get_market_analysis(asset, "Dealer")
-                df_rt = get_market_analysis(asset, "Retail")
+                # Try combined first, fallback to futures-only
+                try:
+                    df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
+                    df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
+                    df_dl = get_market_analysis(asset, "Dealer", use_combined=use_combined)
+                    df_rt = get_market_analysis(asset, "Retail", use_combined=use_combined)
+                except Exception:
+                    df_am = get_market_analysis(asset, "Asset Manager", use_combined=False)
+                    df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=False)
+                    df_dl = get_market_analysis(asset, "Dealer", use_combined=False)
+                    df_rt = get_market_analysis(asset, "Retail", use_combined=False)
                 
                 if not df_am.empty and not df_lf.empty:
                     latest_am = df_am.iloc[-1]
@@ -66,28 +75,28 @@ def get_cot_data(assets_list):
                     
                     basket += f"[{asset}]\n"
                     basket += f"  Asset Manager (Институционалы):\n"
-                    basket += f"    Net: {latest_am['net']:.0f} (Изменение за неделю: {latest_am['wow_change_net']:+.0f})\n"
-                    basket += f"    Лонги: {latest_am['long']:.0f} (Приток/Отток: {latest_am['long_change']:+.0f}) | Шорты: {latest_am['short']:.0f} (Приток/Отток: {latest_am['short_change']:+.0f})\n"
-                    basket += f"    Z-Score: {latest_am['net_zscore_52w']:.2f} std | Режим: {latest_am['regime']}\n"
+                    basket += f"    Net Position: {latest_am['net']:.0f} (Wow Chg: {latest_am['wow_change_net']:+.0f})\n"
+                    basket += f"    Net % OI: {latest_am['net_pct_oi']:.2f}% | Index Net % OI (3г): {latest_am['cot_index_net_pct_oi_156w']:.1f}%\n"
+                    basket += f"    Z-Score % OI (3г): {latest_am['net_pct_oi_zscore_156w']:.2f} std | Режим: {latest_am['regime']}\n"
                     
-                    basket += f"  Leveraged Funds (Спекулянты):\n"
-                    basket += f"    Net: {latest_lf['net']:.0f} (Изменение за неделю: {latest_lf['wow_change_net']:+.0f})\n"
-                    basket += f"    Лонги: {latest_lf['long']:.0f} (Приток/Отток: {latest_lf['long_change']:+.0f}) | Шорты: {latest_lf['short']:.0f} (Приток/Отток: {latest_lf['short_change']:+.0f})\n"
-                    basket += f"    Z-Score: {latest_lf['net_zscore_52w']:.2f} std | Режим: {latest_lf['regime']}\n"
+                    basket += f"  Leveraged Funds (Хедж-фонды):\n"
+                    basket += f"    Net Position: {latest_lf['net']:.0f} (Wow Chg: {latest_lf['wow_change_net']:+.0f})\n"
+                    basket += f"    Net % OI: {latest_lf['net_pct_oi']:.2f}% | Index Net % OI (3г): {latest_lf['cot_index_net_pct_oi_156w']:.1f}%\n"
+                    basket += f"    Z-Score % OI (3г): {latest_lf['net_pct_oi_zscore_156w']:.2f} std | Режим: {latest_lf['regime']}\n"
+                    basket += f"    Spec Ratio (Long/Short): {latest_lf['spec_ratio']:.2f} | Динамика OI-Price: {latest_lf.get('oi_price_sentiment', 'Neutral')}\n"
                     
                     if not df_dl.empty:
                         latest_dl = df_dl.iloc[-1]
                         basket += f"  Dealer Intermediary (Дилеры):\n"
-                        basket += f"    Net: {latest_dl['net']:.0f} (Изменение за неделю: {latest_dl['wow_change_net']:+.0f})\n"
-                        basket += f"    Лонги: {latest_dl['long']:.0f} (Приток/Отток: {latest_dl['long_change']:+.0f}) | Шорты: {latest_dl['short']:.0f} (Приток/Отток: {latest_dl['short_change']:+.0f})\n"
-                        basket += f"    Z-Score: {latest_dl['net_zscore_52w']:.2f} std | Режим: {latest_dl['regime']}\n"
+                        basket += f"    Net Position: {latest_dl['net']:.0f} | Index Net % OI (3г): {latest_dl['cot_index_net_pct_oi_156w']:.1f}%\n"
+                        basket += f"    Z-Score % OI (3г): {latest_dl['net_pct_oi_zscore_156w']:.2f} std\n"
                         
                     if not df_rt.empty:
                         latest_rt = df_rt.iloc[-1]
-                        basket += f"  Retail (Мелкие спекулянты):\n"
-                        basket += f"    Net: {latest_rt['net']:.0f} (Изменение за неделю: {latest_rt['wow_change_net']:+.0f})\n"
-                        basket += f"    Лонги: {latest_rt['long']:.0f} (Приток/Отток: {latest_rt['long_change']:+.0f}) | Шорты: {latest_rt['short']:.0f} (Приток/Отток: {latest_rt['short_change']:+.0f})\n"
-                        basket += f"    Z-Score: {latest_rt['net_zscore_52w']:.2f} std | Режим: {latest_rt['regime']}\n"
+                        basket += f"  Retail (Толпа / Ритейл):\n"
+                        basket += f"    Net Position: {latest_rt['net']:.0f} | Index Net % OI (3г): {latest_rt['cot_index_net_pct_oi_156w']:.1f}%\n"
+                        basket += f"    Z-Score % OI (3г): {latest_rt['net_pct_oi_zscore_156w']:.2f} std\n"
+                        
                     has_data = True
             except Exception as e:
                 logging.error(f"COT basket error for {asset}: {e}")
@@ -157,8 +166,8 @@ def build_global_data_basket(assets_list, extra_context=""):
     except Exception as e:
         basket += f"Ошибка получения альт. данных: {e}\n\n"
         
-    # 3. COT Data
-    basket += get_cot_data(assets_list)
+    # 3. COT Data (Defaulting to Combined)
+    basket += get_cot_data(assets_list, use_combined=True)
     
     # 4. Options Data
     basket += get_options_basket_data(assets_list)

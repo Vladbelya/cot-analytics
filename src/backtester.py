@@ -7,23 +7,19 @@ and generates Russian-language interpretations with statistics.
 import pandas as pd
 import numpy as np
 
-
-# ─────────────────────────────────────────────────────────────
 # 1. SIGNAL DEFINITIONS
-# ─────────────────────────────────────────────────────────────
-
 SIGNAL_DEFS = {
     "extreme_short": {
-        "name": "Экстремальный шорт",
+        "name": "Экстремальный шорт (3г)",
         "icon": "🟢",
         "direction": "bullish",  # contrarian
-        "desc": "COT Index 52w ≤ 10% — крупные игроки максимально зашортили. Исторически это зона разворота вверх.",
+        "desc": "COT Index Net % OI 3г ≤ 10% — чистая позиция крупных спекулянтов на историческом минимуме относительно открытого интереса (шорт-сквиз потенциал).",
     },
     "extreme_long": {
-        "name": "Экстремальный лонг",
+        "name": "Экстремальный лонг (3г)",
         "icon": "🔴",
         "direction": "bearish",  # contrarian
-        "desc": "COT Index 52w ≥ 90% — крупные игроки максимально в лонге. Исторически это зона разворота вниз.",
+        "desc": "COT Index Net % OI 3г ≥ 90% — чистая позиция крупных спекулянтов на историческом максимуме относительно открытого интереса (лонг-сквиз потенциал).",
     },
     "sharp_net_increase": {
         "name": "Резкий рост чистой позиции",
@@ -53,23 +49,19 @@ SIGNAL_DEFS = {
         "name": "Бычья дивергенция",
         "icon": "🟢",
         "direction": "bullish",
-        "desc": "Цена падает, но крупные игроки наращивают позиции — скрытый спрос.",
+        "desc": "Бычье расхождение: цена снижается, в то время как чистая позиция растет.",
     },
     "bearish_divergence": {
         "name": "Медвежья дивергенция",
         "icon": "🔴",
         "direction": "bearish",
-        "desc": "Цена растёт, но крупные игроки сокращают позиции — скрытое распределение.",
+        "desc": "Медвежье расхождение: цена растет, в то время как чистая позиция падает.",
     },
 }
 
 FORWARD_HORIZONS = [1, 2, 4, 8, 12]  # weeks
 
-
-# ─────────────────────────────────────────────────────────────
 # 2. SIGNAL DETECTION
-# ─────────────────────────────────────────────────────────────
-
 def detect_signals_series(df):
     """
     Return a dict of signal_key -> boolean Series (True where signal fires).
@@ -77,9 +69,9 @@ def detect_signals_series(df):
     """
     signals = {}
 
-    # Extreme positioning (contrarian)
-    signals["extreme_short"] = df["cot_index_52w"] <= 10.0
-    signals["extreme_long"] = df["cot_index_52w"] >= 90.0
+    # Extreme positioning (contrarian) using 156w Net % OI COT Index
+    signals["extreme_short"] = df["cot_index_net_pct_oi_156w"] <= 10.0
+    signals["extreme_long"] = df["cot_index_net_pct_oi_156w"] >= 90.0
 
     # Sharp weekly moves (momentum)
     wow = df["wow_change_net_pct_oi"]
@@ -99,11 +91,8 @@ def detect_signals_series(df):
 
     return signals
 
-
 def detect_active_signals(df):
-    """
-    Return list of signal keys active on the latest row.
-    """
+    """Return list of signal keys active on the latest row."""
     all_series = detect_signals_series(df)
     active = []
     for key, series in all_series.items():
@@ -111,11 +100,7 @@ def detect_active_signals(df):
             active.append(key)
     return active
 
-
-# ─────────────────────────────────────────────────────────────
 # 3. BACKTESTING ENGINE
-# ─────────────────────────────────────────────────────────────
-
 def _compute_forward_returns(df):
     """
     Pre-compute forward percentage returns for all horizons.
@@ -127,21 +112,8 @@ def _compute_forward_returns(df):
         fwd[h] = ((future_price - df["close"]) / df["close"]) * 100.0
     return fwd
 
-
 def backtest_signal(df, signal_series, direction, horizons=None):
-    """
-    Backtest a single signal.
-    
-    Args:
-        df: DataFrame with 'close' column and a datetime index/column.
-        signal_series: Boolean Series — True where the signal fires.
-        direction: 'bullish' or 'bearish' — expected price direction.
-        horizons: List of forward weeks to test.
-        
-    Returns:
-        dict with keys for each horizon containing statistics,
-        or None if insufficient data.
-    """
+    """Backtest a single signal."""
     if horizons is None:
         horizons = FORWARD_HORIZONS
 
@@ -190,14 +162,8 @@ def backtest_signal(df, signal_series, direction, horizons=None):
 
     return results
 
-
 def backtest_all_active_signals(df, active_signal_keys):
-    """
-    Run backtests for all active signals.
-    
-    Returns:
-        list of dicts: [{signal_key, signal_def, backtest_results}, ...]
-    """
+    """Run backtests for all active signals."""
     all_signal_series = detect_signals_series(df)
     results = []
 
@@ -216,11 +182,7 @@ def backtest_all_active_signals(df, active_signal_keys):
 
     return results
 
-
-# ─────────────────────────────────────────────────────────────
 # 4. INTERPRETATION GENERATOR
-# ─────────────────────────────────────────────────────────────
-
 def _fmt(val, sign=False):
     """Format number with space separators."""
     v = int(round(val))
@@ -229,18 +191,13 @@ def _fmt(val, sign=False):
         return f"+{s}"
     return s
 
-
 def generate_situation_text(df, participant_name="Участники"):
-    """
-    Generate a human-readable description of what happened this week.
-    Returns a list of strings (paragraphs).
-    """
+    """Generate a description of what happened this week."""
     if len(df) < 2:
         return ["Недостаточно данных для анализа."]
 
     latest = df.iloc[-1]
     prev = df.iloc[-2]
-
     lines = []
 
     # 1. Position changes
@@ -249,7 +206,6 @@ def generate_situation_text(df, participant_name="Участники"):
     net_chg = latest["wow_change_net"]
     oi_chg = latest["oi_change"]
 
-    # Long description
     if long_chg > 0:
         lines.append(f"📈 Лонги увеличены на {_fmt(long_chg, True)} контрактов.")
     elif long_chg < 0:
@@ -257,7 +213,6 @@ def generate_situation_text(df, participant_name="Участники"):
     else:
         lines.append("➡️ Лонги без изменений.")
 
-    # Short description
     if short_chg > 0:
         lines.append(f"📈 Шорты увеличены на {_fmt(short_chg, True)} контрактов.")
     elif short_chg < 0:
@@ -265,13 +220,11 @@ def generate_situation_text(df, participant_name="Участники"):
     else:
         lines.append("➡️ Шорты без изменений.")
 
-    # Net summary
     if net_chg > 0:
         lines.append(f"⚡ Чистая позиция сдвинулась в сторону лонга на {_fmt(net_chg, True)}.")
     elif net_chg < 0:
         lines.append(f"⚡ Чистая позиция сдвинулась в сторону шорта на {_fmt(net_chg)}.")
 
-    # OI context
     if oi_chg > 0:
         lines.append(f"📊 Открытый интерес вырос на {_fmt(oi_chg, True)} — новые деньги входят в рынок.")
     elif oi_chg < 0:
@@ -279,13 +232,8 @@ def generate_situation_text(df, participant_name="Участники"):
 
     return lines
 
-
 def generate_verdict(backtest_results, df, participant_name="Участники"):
-    """
-    Generate a detailed, multi-paragraph analytical verdict.
-    Returns (verdict_paragraphs: list[str], verdict_class: str).
-    Each paragraph is an HTML string.
-    """
+    """Generate verdict with scoring."""
     if not backtest_results:
         no_signal_text = _build_no_signal_verdict(df, participant_name)
         return no_signal_text, "neutral"
@@ -293,7 +241,6 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
     latest = df.iloc[-1]
     paragraphs = []
 
-    # ── 1. Collect scored signals ──────────────────────────────
     bullish_items = []
     bearish_items = []
 
@@ -302,7 +249,6 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
         bt = item["backtest"]
         direction = sig_def["direction"]
 
-        # Best available horizon stats (prefer 4w, fallback to others)
         best_h = None
         for h in [4, 8, 2, 12, 1]:
             if bt and h in bt["horizons"]:
@@ -321,30 +267,20 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
         else:
             bearish_items.append(entry)
 
-    # ── 2. Current action paragraph ───────────────────────────
     long_chg = latest["long_change"]
     short_chg = latest["short_change"]
     net_chg = latest["wow_change_net"]
-    net_val = latest["net"]
     oi_chg = latest["oi_change"]
 
     action_parts = ["<strong>⚡ Текущая динамика:</strong>"]
     if long_chg > 0 and short_chg < 0:
-        action_parts.append(
-            f"{participant_name} наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)})."
-        )
+        action_parts.append(f"{participant_name} наращивают лонги (+{_fmt(long_chg)}) и сокращают шорты ({_fmt(short_chg)}).")
     elif long_chg < 0 and short_chg > 0:
-        action_parts.append(
-            f"{participant_name} сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)})."
-        )
+        action_parts.append(f"{participant_name} сокращают лонги ({_fmt(long_chg)}) и наращивают шорты (+{_fmt(short_chg)}).")
     elif long_chg > 0 and short_chg > 0:
-        action_parts.append(
-            f"{participant_name} наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)})."
-        )
+        action_parts.append(f"{participant_name} наращивают и лонги (+{_fmt(long_chg)}), и шорты (+{_fmt(short_chg)}).")
     elif long_chg < 0 and short_chg < 0:
-        action_parts.append(
-            f"{participant_name} сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)})."
-        )
+        action_parts.append(f"{participant_name} сокращают и лонги ({_fmt(long_chg)}), и шорты ({_fmt(short_chg)}).")
     else:
         if net_chg > 0:
             action_parts.append(f"Чистая позиция сдвинулась в сторону лонга на {_fmt(net_chg, True)}.")
@@ -352,18 +288,13 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
             action_parts.append(f"Чистая позиция сдвинулась в сторону шорта на {_fmt(net_chg)}.")
 
     if oi_chg > 0:
-        action_parts.append(
-            f"Открытый интерес вырос на {_fmt(oi_chg, True)}."
-        )
+        action_parts.append(f"Открытый интерес вырос на {_fmt(oi_chg, True)}.")
     elif oi_chg < 0:
-        action_parts.append(
-            f"Открытый интерес упал на {_fmt(oi_chg)}."
-        )
+        action_parts.append(f"Открытый интерес упал на {_fmt(oi_chg)}.")
 
     if len(action_parts) > 1:
         paragraphs.append(" ".join(action_parts))
 
-    # ── 3. Signal-by-signal reasoning ─────────────────────────
     if bullish_items or bearish_items:
         paragraphs.append("<strong>🎯 Обнаруженные сигналы:</strong>")
 
@@ -372,7 +303,6 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
         if sig_paragraph:
             paragraphs.append("• " + sig_paragraph)
 
-    # ── 4. Final verdict with scoring ─────────────────────────
     bullish_score = 0
     bearish_score = 0
     strongest_signal = None
@@ -402,28 +332,18 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
     conclusion_parts = ["<strong>📋 ИТОГОВЫЙ ВЕРДИКТ:</strong>"]
 
     if has_conflict:
-        conclusion_parts.append(
-            "⚠️ <strong>Смешанный фон (Конфликт сигналов).</strong> "
-            "В данный момент на рынке присутствуют как бычьи, так и медвежьи сигналы."
-        )
+        conclusion_parts.append("⚠️ <strong>Смешанный фон (Конфликт сигналов).</strong> В данный момент на рынке присутствуют как бычьи, так и медвежьи сигналы.")
 
     if bull_pct >= 65:
         verdict_class = "bullish" if not has_conflict else "neutral"
-        conclusion_parts.append(
-            f"🟢 <strong>БЫЧИЙ ПЕРЕВЕС.</strong> Совокупность бычьих факторов ({bull_pct:.0f}% веса) преобладает."
-        )
+        conclusion_parts.append(f"🟢 <strong>БЫЧИЙ ПЕРЕВЕС.</strong> Совокупность бычьих факторов ({bull_pct:.0f}% веса) преобладает.")
     elif bull_pct <= 35:
         verdict_class = "bearish" if not has_conflict else "neutral"
         bear_pct = 100 - bull_pct
-        conclusion_parts.append(
-            f"🔴 <strong>МЕДВЕЖИЙ ПЕРЕВЕС.</strong> Совокупность медвежьих факторов ({bear_pct:.0f}% веса) преобладает."
-        )
+        conclusion_parts.append(f"🔴 <strong>МЕДВЕЖИЙ ПЕРЕВЕС.</strong> Совокупность медвежьих факторов ({bear_pct:.0f}% веса) преобладает.")
     else:
         verdict_class = "neutral"
-        conclusion_parts.append(
-            f"⚪ <strong>НЕЙТРАЛЬНО.</strong> Бычьи факторы ({bull_pct:.0f}%) и медвежьи ({100-bull_pct:.0f}%) "
-            f"уравновешивают друг друга. Ожидается боковик или высокая волатильность."
-        )
+        conclusion_parts.append(f"⚪ <strong>НЕЙТРАЛЬНО.</strong> Бычьи факторы ({bull_pct:.0f}%) и медвежьи ({100-bull_pct:.0f}%) уравновешивают друг друга.")
 
     if strongest_signal and strongest_wr > 50:
         h = strongest_signal["best_h"]
@@ -438,7 +358,6 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
                 f"Исторически это давало статистическое преимущество в сторону {dir_word}."
             )
 
-    # Risk caveat
     if strongest_signal and strongest_signal["bt"]:
         h = strongest_signal["best_h"]
         if h and h in strongest_signal["bt"]["horizons"]:
@@ -451,9 +370,7 @@ def generate_verdict(backtest_results, df, participant_name="Участники"
     paragraphs.append(" ".join(conclusion_parts))
     return paragraphs, verdict_class
 
-
 def _get_signal_weight(entry):
-    """Return (weight, win_rate) for scoring."""
     bt = entry["bt"]
     h = entry["best_h"]
     if bt and h and h in bt["horizons"]:
@@ -461,9 +378,7 @@ def _get_signal_weight(entry):
         return wr / 50.0, wr
     return 1.0, 50.0
 
-
 def _build_signal_reasoning(entry, df, participant_name="Участники"):
-    """Build a narrative paragraph for a single signal."""
     name = entry["name"]
     key = entry["key"]
     bt = entry["bt"]
@@ -479,23 +394,23 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
         return None
 
     count = bt["count"]
-    wr = s["win_rate"]
     mean_r = s["mean_return"]
     median_r = s["median_return"]
+    wr = s["win_rate"]
 
     parts = []
 
     if key == "extreme_short":
-        cot_idx = latest.get("cot_index_52w", 0)
+        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
         parts.append(
-            f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
-            f"текущая чистая позиция находится у нижней границы своего 52-недельного диапазона."
+            f"Сигнал «{name}»: COT Index Net % OI 3г = {cot_idx:.1f}%, что означает — "
+            f"текущее отношение чистой позиции к открытому интересу находится у нижней границы своего 3-летнего диапазона."
         )
     elif key == "extreme_long":
-        cot_idx = latest.get("cot_index_52w", 0)
+        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
         parts.append(
-            f"Сигнал «{name}»: COT Index 52w = {cot_idx:.1f}%, что означает — "
-            f"текущая чистая позиция находится у верхней границы своего 52-недельного диапазона."
+            f"Сигнал «{name}»: COT Index Net % OI 3г = {cot_idx:.1f}%, что означает — "
+            f"текущее отношение чистой позиции к открытому интересу находится у верхней границы своего 3-летнего диапазона."
         )
     elif key == "zero_cross_up":
         parts.append(
@@ -530,7 +445,6 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
             f"но {participant_name} сокращают чистую позицию."
         )
 
-    # Backtest reference
     dir_word = "роста" if direction == "bullish" else "снижения"
     wr_quality = "высокий" if wr >= 60 else ("умеренный" if wr >= 50 else "ниже 50%")
 
@@ -544,34 +458,31 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
 
     return " ".join(parts)
 
-
 def _build_no_signal_verdict(df, participant_name="Участники"):
-    """Build a detailed verdict when there are no active signals."""
     latest = df.iloc[-1]
     parts = []
 
     net = latest["net"]
     net_chg = latest["wow_change_net"]
-    cot_idx = latest.get("cot_index_52w", 50)
+    cot_idx = latest.get("cot_index_net_pct_oi_156w", 50)
 
     parts.append(
         f"Активных сигналов не обнаружено — ни один из 8 отслеживаемых паттернов не сработал."
     )
 
-    # Provide context on where positioning is
     if 30 <= cot_idx <= 70:
         parts.append(
-            f"COT Index 52w = {cot_idx:.1f}% — позиционирование находится в нейтральной зоне "
+            f"COT Index Net % OI 3г = {cot_idx:.1f}% — позиционирование находится в нейтральной зоне "
             f"(между 30% и 70%), далеко от экстремумов."
         )
     elif cot_idx < 30:
         parts.append(
-            f"COT Index 52w = {cot_idx:.1f}% — позиционирование ближе к нижней границе, "
+            f"COT Index Net % OI 3г = {cot_idx:.1f}% — позиционирование ближе к нижней границе, "
             f"но пока не достигло экстремальных уровней (≤10%)."
         )
     else:
         parts.append(
-            f"COT Index 52w = {cot_idx:.1f}% — позиционирование ближе к верхней границе, "
+            f"COT Index Net % OI 3г = {cot_idx:.1f}% — позиционирование ближе к верхней границе, "
             f"но пока не достигло экстремальных уровней (≥90%)."
         )
 
@@ -579,7 +490,7 @@ def _build_no_signal_verdict(df, participant_name="Участники"):
         direction_word = "в сторону лонга" if net_chg > 0 else "в сторону шорта"
         parts.append(
             f"За неделю чистая позиция сдвинулась {direction_word} на {_fmt(abs(net_chg))}, "
-            f"но масштаб изменения находится в пределах нормы (не входит в топ-5%/нижние-5%)."
+            f"но масштаб изменения находится в пределах нормы."
         )
 
     parts.append(
@@ -589,11 +500,8 @@ def _build_no_signal_verdict(df, participant_name="Участники"):
 
     return parts
 
-
 def run_full_interpretation(df, participant_name="Участники"):
-    """
-    Main entry point. Returns a dict with all interpretation data.
-    """
+    """Main entry point. Returns a dict with all interpretation data."""
     active_keys = detect_active_signals(df)
     backtest_results = backtest_all_active_signals(df, active_keys)
     situation_lines = generate_situation_text(df, participant_name)
@@ -606,4 +514,3 @@ def run_full_interpretation(df, participant_name="Участники"):
         "verdict_paragraphs": verdict_paragraphs,
         "verdict_class": verdict_class,
     }
-

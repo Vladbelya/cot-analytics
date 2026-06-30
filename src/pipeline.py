@@ -23,11 +23,14 @@ def init_directories():
     os.makedirs(DATA_DIR_COT, exist_ok=True)
     os.makedirs(DATA_DIR_PRICES, exist_ok=True)
 
-def fetch_cot_data(market_name, config):
+def fetch_cot_data(market_name, config, use_combined=False):
     """Fetch all available COT history for all participant categories from Socrata API."""
-    dataset_id = config["dataset_id"]
+    # Standard Socrata IDs for TFF reports:
+    # gpe5-46if (Futures Only), yw9f-hn96 (Combined Futures & Options)
+    dataset_id = "yw9f-hn96" if use_combined else "gpe5-46if"
     cftc_code = config["cftc_code"]
     report_type = config["report_type"]
+    suffix = "_combined" if use_combined else "_futures"
     
     # Define columns to fetch (all configured markets use TFF report type)
     columns = [
@@ -51,7 +54,7 @@ def fetch_cot_data(market_name, config):
     query = f"SELECT {select_clause} WHERE cftc_contract_market_code = '{cftc_code}' ORDER BY report_date_as_yyyy_mm_dd DESC LIMIT 2000"
     url = f"https://publicreporting.cftc.gov/resource/{dataset_id}.json?$query={urllib.parse.quote(query)}"
     
-    logging.info(f"Загрузка COT для {market_name} с URL: {url[:100]}...")
+    logging.info(f"Загрузка COT данных ({suffix[1:]}) {market_name} из URL: {url[:100]}...")
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     
     try:
@@ -80,12 +83,12 @@ def fetch_cot_data(market_name, config):
             df = df[[c for c in keep_cols if c in df.columns]]
             
             # Save to CSV
-            filepath = os.path.join(DATA_DIR_COT, f"{market_name}.csv")
+            filepath = os.path.join(DATA_DIR_COT, f"{market_name}{suffix}.csv")
             df.to_csv(filepath, index=False, encoding='utf-8')
-            logging.info(f"Успешно сохранены данные COT для {market_name} ({len(df)} недель) в {filepath}")
+            logging.info(f"Успешно сохранен файл COT {market_name}{suffix} ({len(df)} недель) в {filepath}")
             return df
     except Exception as e:
-        logging.error(f"Ошибка при загрузке COT для {market_name}: {e}")
+        logging.error(f"Ошибка при загрузке COT {market_name}{suffix}: {e}")
         raise
 
 def fetch_price_data(market_name, config):
@@ -109,25 +112,29 @@ def fetch_price_data(market_name, config):
         # Save to CSV
         filepath = os.path.join(DATA_DIR_PRICES, f"{market_name}.csv")
         ticker_df.to_csv(filepath, index=False, encoding='utf-8')
-        logging.info(f"Успешно сохранены цены для {market_name} ({len(ticker_df)} дней) в {filepath}")
+        logging.info(f"Успешно сохранен файл цен {market_name} ({len(ticker_df)} дней) в {filepath}")
         return ticker_df
     except Exception as e:
-        logging.error(f"Ошибка при загрузке цен для {market_name}: {e}")
+        logging.error(f"Ошибка при загрузке цен {market_name}: {e}")
         raise
 
 def update_all_data():
-    """Run update pipeline for all configured markets."""
+    """Run update pipeline for all configured markets (both Futures and Combined)."""
     init_directories()
     results = {}
     
     for market_name, config in MARKETS.items():
-        logging.info(f"=== Обновление данных для {market_name} ===")
+        logging.info(f"=== Обновление рынка: {market_name} ===")
         try:
-            fetch_cot_data(market_name, config)
+            # Fetch Futures Only
+            fetch_cot_data(market_name, config, use_combined=False)
+            # Fetch Combined F&O
+            fetch_cot_data(market_name, config, use_combined=True)
+            # Fetch Price Data
             fetch_price_data(market_name, config)
             results[market_name] = True
         except Exception as e:
-            logging.error(f"Сбой обновления для {market_name}: {e}")
+            logging.error(f"Ошибка при обновлении {market_name}: {e}")
             results[market_name] = False
             
     return results
@@ -136,7 +143,7 @@ def get_data_freshness():
     """Check dates of last updates for all markets."""
     freshness = {}
     for market_name in MARKETS.keys():
-        cot_file = os.path.join(DATA_DIR_COT, f"{market_name}.csv")
+        cot_file = os.path.join(DATA_DIR_COT, f"{market_name}_futures.csv")
         price_file = os.path.join(DATA_DIR_PRICES, f"{market_name}.csv")
         
         if os.path.exists(cot_file) and os.path.exists(price_file):
@@ -161,7 +168,7 @@ def get_data_freshness():
                 freshness[market_name] = {
                     "exists": False,
                     "error": str(e),
-                    "status": "Ошибка чтения"
+                    "status": "Ошибка анализа"
                 }
         else:
             freshness[market_name] = {
