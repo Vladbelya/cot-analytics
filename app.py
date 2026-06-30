@@ -424,6 +424,18 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
         row_heights=[0.31, 0.23, 0.23, 0.23]
     )
     
+    # --- Dynamic WoW Net % OI Spike Overlays (Top/Bottom 5% changes) - Anomaly Indicators ---
+    wow_series = plot_df["wow_change_net_pct_oi"].dropna()
+    if len(wow_series) > 10:
+        q95 = wow_series.quantile(0.95)
+        q05 = wow_series.quantile(0.05)
+        for _, row in plot_df.iterrows():
+            val = row.get("wow_change_net_pct_oi", 0)
+            if val >= q95:
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.15)", row="all", col=1, layer="below")
+            elif val <= q05:
+                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.15)", row="all", col=1, layer="below")
+
     # Row 1: Price
     fig.add_trace(go.Scatter(
         x=plot_df["report_date"], 
@@ -435,25 +447,27 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
     
     # Row 2: Long Flow (Приток/Отток в лонг)
     long_flow = plot_df["long_change"]
+    long_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in long_flow]
     fig.add_trace(go.Bar(
         x=plot_df["report_date"], 
         y=long_flow, 
         name="Приток/Отток в Лонг", 
-        marker_color="#2ecc71", 
+        marker_color=long_colors, 
         marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Лонг поток: %{y:,.0f} контр.<extra></extra>"
+        hovertemplate="Дата: %{x}<br>Лонг поток: %{y:+.0f} контр.<extra></extra>"
     ), row=2, col=1)
     fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
     
     # Row 3: Short Flow (Приток/Отток в шорт)
     short_flow = plot_df["short_change"]
+    short_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in short_flow]
     fig.add_trace(go.Bar(
         x=plot_df["report_date"], 
         y=short_flow, 
         name="Приток/Отток в Шорт", 
-        marker_color="#e74c3c", 
+        marker_color=short_colors, 
         marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Шорт поток: %{y:,.0f} контр.<extra></extra>"
+        hovertemplate="Дата: %{x}<br>Шорт поток: %{y:+.0f} контр.<extra></extra>"
     ), row=3, col=1)
     fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
     
@@ -466,7 +480,7 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
         name="Чистая Дельта", 
         marker_color=bar_colors, 
         marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Дельта: %{y:,.0f} контр.<extra></extra>"
+        hovertemplate="Дата: %{x}<br>Дельта: %{y:+.0f} контр.<extra></extra>"
     ), row=4, col=1)
     fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=4, col=1)
     
