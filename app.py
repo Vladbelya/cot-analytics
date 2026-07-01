@@ -411,12 +411,12 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
         mode="lines"
     ), row=1, col=1)
     
-    # 2. Z-Score (52w) of Price
-    zscore_values = plot_df["price_zscore_52w"]
+    # 2. Z-Score (52w) of Positions
+    zscore_values = plot_df["net_pct_oi_zscore_52w"]
     fig.add_trace(go.Scatter(
         x=plot_df["report_date"], 
         y=zscore_values, 
-        name="Z-Score цены (52н)", 
+        name="Z-Score позиций (52н)", 
         line=dict(color="#f39c12", width=2.0), 
         mode="lines"
     ), row=2, col=1)
@@ -426,12 +426,12 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
     fig.add_hline(y=0.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
     fig.add_hline(y=-1.5, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=2, col=1)
     
-    # 3. Percentile (52w) of Price
-    pct_values = plot_df["price_percentile_52w"]
+    # 3. Percentile (52w) of Positions
+    pct_values = plot_df["cot_index_net_pct_oi_52w"]
     fig.add_trace(go.Scatter(
         x=plot_df["report_date"], 
         y=pct_values, 
-        name="Перцентиль цены (52н)", 
+        name="Перцентиль позиций (52н)", 
         line=dict(color="#3498db", width=2.0), 
         mode="lines"
     ), row=3, col=1)
@@ -457,9 +457,10 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Z-Score цены", row=2, col=1)
-    fig.update_yaxes(title_text="Перцентиль цены (%)", row=3, col=1)
+    fig.update_yaxes(title_text="Z-Score позиций", row=2, col=1)
+    fig.update_yaxes(title_text="Перцентиль позиций (%)", row=3, col=1)
     return fig
+
 
 
 def draw_flows_chart(plot_df, market_name, chart_height=750):
@@ -970,26 +971,26 @@ else:
     st.title(f"📊 {selected_market}")
     st.caption(f"Рынок: **{MARKETS[selected_market]['display_name']}** | Категория: **{selected_display}**")
     
-    # 0. Asset Price Metrics Columns
+    # 0. Asset and Positioning Metrics Columns
     latest_row = df.iloc[-1]
     price_now = latest_row["close"]
     price_prev = df["close"].iloc[-2] if len(df) > 1 else price_now
     price_change = price_now - price_prev
     price_change_pct = (price_change / price_prev) * 100 if price_prev > 0 else 0.0
     
-    price_z = latest_row.get("price_zscore_52w", 0.0)
-    price_pct = latest_row.get("price_percentile_52w", 50.0)
-    if pd.isna(price_z): price_z = 0.0
-    if pd.isna(price_pct): price_pct = 50.0
+    pos_z = latest_row.get("net_pct_oi_zscore_52w", 0.0)
+    pos_pct = latest_row.get("cot_index_net_pct_oi_52w", 50.0)
+    if pd.isna(pos_z): pos_z = 0.0
+    if pd.isna(pos_pct): pos_pct = 50.0
     
-    if price_pct >= 95.0 and price_z >= 2.0:
-        price_state = "🔴 Перегрет"
-    elif price_pct >= 80.0 or price_z >= 1.5:
-        price_state = "🟡 Перекуплен"
-    elif price_pct <= 20.0 or price_z <= -1.5:
-        price_state = "🟢 Перепродан"
+    if pos_pct >= 95.0 and pos_z >= 2.0:
+        pos_state = "🔴 Перегрев лонгов"
+    elif pos_pct >= 80.0 or pos_z >= 1.5:
+        pos_state = "🟡 Перекупленность"
+    elif pos_pct <= 20.0 or pos_z <= -1.5:
+        pos_state = "🟢 Перепроданность"
     else:
-        price_state = "⚪ Нейтрально"
+        pos_state = "⚪ Нейтрально"
         
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
     with m_col1:
@@ -1001,22 +1002,23 @@ else:
         )
     with m_col2:
         st.metric(
-            label="Z-Score цены (52н)",
-            value=f"{price_z:.2f} std",
-            delta="Отклонение от среднего"
+            label="Z-Score позиций (52н)",
+            value=f"{pos_z:.2f} std",
+            delta="Сдвиг чистой позы от средней"
         )
     with m_col3:
         st.metric(
-            label="Перцентиль цены (52н)",
-            value=f"{price_pct:.1f}%",
-            delta="Положение в диапазоне"
+            label="Перцентиль позиций (52н)",
+            value=f"{pos_pct:.1f}%",
+            delta="Относительное сентимент-положение"
         )
     with m_col4:
         st.metric(
-            label="Состояние актива (1г)",
-            value=price_state,
+            label="Состояние позиций (1г)",
+            value=pos_state,
             delta="Границы: 80% / 20%"
         )
+
 
     
     # Slice data for chart

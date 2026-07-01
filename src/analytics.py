@@ -291,18 +291,32 @@ def generate_holistic_report(market_name, use_combined=False):
     
     context = f"**📊 Контекст рынка (Цена):** За последнюю неделю цена {wow_trend} до отметки ${price_now:,.2f}. В разрезе месяца актив находится в фазе {mom_trend}."
     
-    # Asset price state
-    price_z = latest_am["price_zscore_52w"]
-    price_pct = latest_am["price_percentile_52w"]
-    if price_pct >= 95.0 and price_z >= 2.0:
-        price_state = "🔴 ПЕРЕГРЕТ (Критическая перекупленность)"
-    elif price_pct >= 80.0 or price_z >= 1.5:
-        price_state = "🟡 ПЕРЕКУПЛЕН"
-    elif price_pct <= 20.0 or price_z <= -1.5:
-        price_state = "🟢 ПЕРЕПРОДАН"
+    # Positioning States (52w)
+    lf_z = latest_lf.get("net_pct_oi_zscore_52w", 0.0)
+    lf_pct = latest_lf.get("cot_index_net_pct_oi_52w", 50.0)
+    if lf_pct >= 95.0 and lf_z >= 2.0:
+        lf_state = "🔴 ПЕРЕГРЕТ (Спекулянты максимально перегружены покупками)"
+    elif lf_pct >= 80.0 or lf_z >= 1.5:
+        lf_state = "🟡 ПЕРЕКУПЛЕННОСТЬ"
+    elif lf_pct <= 20.0 or lf_z <= -1.5:
+        lf_state = "🟢 ПЕРЕПРОДАННОСТЬ (Спекулянты в максимальном шорте)"
     else:
-        price_state = "⚪ НЕЙТРАЛЬНО"
-    context += f"\n* 📈 **Состояние актива:** Цена находится в состоянии **{price_state}** (Z-Score: **{price_z:.2f} std**, годовой перцентиль: **{price_pct:.1f}%**)."
+        lf_state = "⚪ НЕЙТРАЛЬНО"
+        
+    am_z = latest_am.get("net_pct_oi_zscore_52w", 0.0)
+    am_pct = latest_am.get("cot_index_net_pct_oi_52w", 50.0)
+    if am_pct >= 95.0 and am_z >= 2.0:
+        am_state = "🟢 МАКСИМАЛЬНЫЙ ЛОНГ (Институционалы на исторических хаях позиций)"
+    elif am_pct >= 80.0 or am_z >= 1.5:
+        am_state = "🟢 УВЕЛИЧЕННЫЙ ЛОНГ"
+    elif am_pct <= 20.0 or am_z <= -1.5:
+        am_state = "🔴 МИНИМАЛЬНЫЙ ЛОНГ (Институционалы сократили лонги до минимума)"
+    else:
+        am_state = "⚪ НЕЙТРАЛЬНО"
+        
+    context += f"\n* 🚀 **Позиционирование спекулянтов (1г):** Настроение хедж-фондов находится в состоянии **{lf_state}** (Z-Score: **{lf_z:.2f} std**, годовой перцентиль: **{lf_pct:.1f}%**)."
+    context += f"\n* 🏛️ **Позиционирование институционалов (1г):** Настроение Asset Managers находится в состоянии **{am_state}** (Z-Score: **{am_z:.2f} std**, годовой перцентиль: **{am_pct:.1f}%**)."
+
     
     # Open Interest Dynamics
     oi_now = latest_am["open_interest"]
