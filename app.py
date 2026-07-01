@@ -378,7 +378,7 @@ def generate_minimal_html_table(df, market_name, participant_name):
     return html
 
 # Helper to generate the backtest statistics HTML table
-def display_backtest_stats_table(df):
+def display_backtest_stats_table(df, market_name, participant_name):
     from src.backtester import run_backtests_for_all_signals
     stats = run_backtests_for_all_signals(df)
     
@@ -386,8 +386,53 @@ def display_backtest_stats_table(df):
         st.write("Нет достаточного количества исторических данных для расчета бэктестов.")
         return
         
+    # --- Backtest Explanation Cheat Sheet ---
+    if participant_name == "Asset Manager":
+        group_desc = "🏛️ **Институционалы (Asset Managers)** — это долгосрочные 'умные деньги' (пенсионные фонды, ETF). Они торгуют без плеча."
+        logic_desc = "Их логика — **следование за трендом (Trend-Following)**. Если институционалы накапливают покупки, цена исторически растет; если они массово выходят — падает."
+        recommendation = "🟢 **Рекомендация бэктеста:** Повторять действия за ними. Их покупки статистически подтверждают силу тренда."
+    elif participant_name == "Leveraged Funds":
+        group_desc = "🚀 **Хедж-фонды (Leveraged Funds)** — это крупные спекулянты с плечом. Они агрессивно гонятся за трендом."
+        logic_desc = "Их логика — **контр-индикатор на экстремумах (Contrarian)**. Они часто покупают на самом верху или шортят на самом дне. Когда их позиции достигают пиков перегрузки, это предвещает разворот рынка (шорт-сквиз или лонг-сквиз)."
+        recommendation = "⚠️ **Рекомендация бэктеста:** Играть в контр-тренд. Покупать, когда спекулянты в максимальном шорте, и продавать, когда они в максимальном лонге."
+    elif participant_name == "Retail":
+        group_desc = "👥 **Ритейл (Retail)** — мелкие спекулянты (толпа). Часто поддаются эмоциям (FOMO и панике)."
+        logic_desc = "Их логика — **контр-индикатор (Contrarian)**. Толпа обычно покупает на самом пике цены и паникует (шортит) на самом дне."
+        recommendation = "⚠️ **Рекомендация бэктеста:** Играть строго против толпы на экстремумах."
+    else: # Dealer
+        group_desc = "🏦 **Дилеры (Dealers)** — маркет-мейкеры (крупные банки). Они обеспечивают ликвидность на рынке."
+        logic_desc = "Их логика — **следование/хеджирование (Follow)**. Их позиции часто зеркальны клиентам, но они выстраивают защиту на уровнях."
+        recommendation = "⚪ **Рекомендация бэктеста:** Использовать для оценки институционального спроса."
+        
+    # Find a signal to highlight in the helper card
+    highlight_text = ""
+    for s in stats:
+        if s["key"] == "bullish_divergence" and 4 in s["horizons"]:
+            wr_4 = s["horizons"][4]["win_rate"]
+            highlight_text = f"Например, паттерн **Бычья дивергенция** у этой группы имеет **Win Rate {wr_4}%** на горизонте 4 недель."
+            break
+            
+    summary_html = f"""
+    <div style="background-color: #0e1117; border-left: 4px solid #3498db; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #1f2937;">
+        <h5 style="margin-top: 0; color: #3498db; font-size: 1.05em; margin-bottom: 8px;">💡 ШПАРГАЛКА БЭКТЕСТА: КАК ЧИТАТЬ ЭТИ ДАННЫЕ?</h5>
+        <p style="margin-bottom: 8px; font-size: 0.92em; line-height: 1.4; color: #adbac7;">
+            {group_desc}
+        </p>
+        <p style="margin-bottom: 8px; font-size: 0.92em; line-height: 1.4; color: #adbac7;">
+            <strong>Логика бэктеста:</strong> {logic_desc}
+        </p>
+        <p style="margin-bottom: 8px; font-size: 0.92em; line-height: 1.4; color: #adbac7;">
+            {recommendation}
+        </p>
+        {f'<p style="margin-bottom: 0; font-size: 0.88em; line-height: 1.4; color: #768390;"><em>{highlight_text}</em></p>' if highlight_text else ''}
+    </div>
+    """
+    st.markdown(summary_html, unsafe_allow_html=True)
+        
     html = """
     <table class="cot-table">
+    """
+
     <thead>
     <tr>
     <th style="text-align: left; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СИГНАЛ (ОЖИДАНИЕ)</th>
@@ -1118,8 +1163,8 @@ else:
     
     # 3.5. Full Backtest Stats Table
     with st.expander("📊 Показать полную статистику исторических бэктестов (Все сигналы группы)", expanded=True):
-        display_backtest_stats_table(df)
-        
+        display_backtest_stats_table(df, selected_market, tff_participant)
+
     # 4. Advanced Holistic AI Report
     st.markdown(f"### 🤖 Аналитический репорт ИИ")
 
