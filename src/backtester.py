@@ -517,3 +517,27 @@ def run_full_interpretation(df, participant_name="Участники"):
         "verdict_paragraphs": verdict_paragraphs,
         "verdict_class": verdict_class,
     }
+
+
+def run_backtests_for_all_signals(df):
+    """Run backtests for all defined signals on the given dataset, returning a list of dicts."""
+    all_signal_series = detect_signals_series(df)
+    results = []
+    
+    for key, sig_def in SIGNAL_DEFS.items():
+        bt = backtest_signal(
+            df,
+            all_signal_series[key],
+            direction=sig_def["direction"],
+        )
+        if bt:
+            results.append({
+                "key": key,
+                "name": sig_def["name"],
+                "icon": sig_def["icon"],
+                "direction": sig_def["direction"],
+                "count": bt["count"],
+                "horizons": bt["horizons"]
+            })
+    return results
+

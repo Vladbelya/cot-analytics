@@ -377,6 +377,67 @@ def generate_minimal_html_table(df, market_name, participant_name):
 </div>"""
     return html
 
+# Helper to generate the backtest statistics HTML table
+def display_backtest_stats_table(df):
+    from src.backtester import run_backtests_for_all_signals
+    stats = run_backtests_for_all_signals(df)
+    
+    if not stats:
+        st.write("Нет достаточного количества исторических данных для расчета бэктестов.")
+        return
+        
+    html = """
+    <table class="cot-table">
+    <thead>
+    <tr>
+    <th style="text-align: left; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СИГНАЛ (ОЖИДАНИЕ)</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">КОЛ-ВО</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">WIN RATE (+4н)</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">WIN RATE (+12н)</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СРЕДНИЙ RETURN (+4н)</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СРЕДНИЙ RETURN (+12н)</th>
+    </tr>
+    </thead>
+    <tbody>
+    """
+    
+    for item in stats:
+        icon = item["icon"]
+        name = item["name"]
+        direction = "BUY" if item["direction"] == "bullish" else "SELL"
+        count = item["count"]
+        
+        # Get 4w and 12w stats
+        h4 = item["horizons"].get(4, {})
+        h12 = item["horizons"].get(12, {})
+        
+        wr_4 = f"{h4.get('win_rate', '—')}%" if "win_rate" in h4 else "—"
+        wr_12 = f"{h12.get('win_rate', '—')}%" if "win_rate" in h12 else "—"
+        
+        ret_4 = f"{h4.get('mean_return', 0.0):+.2f}%" if "mean_return" in h4 else "—"
+        ret_12 = f"{h12.get('mean_return', 0.0):+.2f}%" if "mean_return" in h12 else "—"
+        
+        dir_color = "#10b981" if item["direction"] == "bullish" else "#ef4444"
+        
+        html += f"""
+        <tr>
+        <td style="text-align: left; padding: 10px 16px;">
+        {icon} <strong>{name}</strong> <span style="color: {dir_color}; font-size: 0.85em; margin-left: 5px;">({direction})</span>
+        </td>
+        <td class="font-mono" style="text-align: right; padding: 10px 16px;">{count}</td>
+        <td class="font-mono" style="text-align: right; padding: 10px 16px; font-weight: bold; color: {dir_color if h4.get('win_rate', 50) > 55 or h4.get('win_rate', 50) < 45 else '#ffffff'}">{wr_4}</td>
+        <td class="font-mono" style="text-align: right; padding: 10px 16px; font-weight: bold; color: {dir_color if h12.get('win_rate', 50) > 55 or h12.get('win_rate', 50) < 45 else '#ffffff'}">{wr_12}</td>
+        <td class="font-mono" style="text-align: right; padding: 10px 16px; color: {'#10b981' if h4.get('mean_return', 0) > 0 else '#ef4444'}">{ret_4}</td>
+        <td class="font-mono" style="text-align: right; padding: 10px 16px; color: {'#10b981' if h12.get('mean_return', 0) > 0 else '#ef4444'}">{ret_12}</td>
+        </tr>
+        """
+        
+    html += """
+    </tbody>
+    </table>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
 # Helper to generate the interpretation HTML block
 def generate_interpretation_html(interp, market_name, participant_name):
     html = f"""<div class="interp-card">
@@ -1055,8 +1116,13 @@ else:
     table_html = generate_minimal_html_table(df, selected_market, selected_display.split(" (")[0])
     st.markdown(table_html, unsafe_allow_html=True)
     
+    # 3.5. Full Backtest Stats Table
+    with st.expander("📊 Показать полную статистику исторических бэктестов (Все сигналы группы)", expanded=True):
+        display_backtest_stats_table(df)
+        
     # 4. Advanced Holistic AI Report
     st.markdown(f"### 🤖 Аналитический репорт ИИ")
+
     from src.analytics import generate_holistic_report
     holistic_report = generate_holistic_report(selected_market, use_combined=use_combined)
     st.info(holistic_report)
