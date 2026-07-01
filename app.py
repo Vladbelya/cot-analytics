@@ -431,8 +431,6 @@ def display_backtest_stats_table(df, market_name, participant_name):
         
     html = """
     <table class="cot-table">
-    """
-
     <thead>
     <tr>
     <th style="text-align: left; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СИГНАЛ (ОЖИДАНИЕ)</th>
@@ -445,6 +443,7 @@ def display_backtest_stats_table(df, market_name, participant_name):
     </thead>
     <tbody>
     """
+
     
     for item in stats:
         icon = item["icon"]
