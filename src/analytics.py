@@ -180,7 +180,17 @@ def calculate_metrics(df):
     df.loc[(price_change < 0) & (oi_change > 0), "oi_price_sentiment"] = "Сильный нисходящий тренд (Подтвержден ростом OI)"
     df.loc[(price_change < 0) & (oi_change < 0), "oi_price_sentiment"] = "Слабый нисходящий импульс (Лонг-сквиз / Капитуляция)"
     
+    # 8. Asset Price Percentile and Z-Score (52w rolling window)
+    rolling_mean_price_52 = df["close"].rolling(window=52, min_periods=26).mean()
+    rolling_std_price_52 = df["close"].rolling(window=52, min_periods=26).std()
+    df["price_zscore_52w"] = np.where(rolling_std_price_52 != 0, (df["close"] - rolling_mean_price_52) / rolling_std_price_52, 0.0)
+    
+    min_price_52 = df["close"].rolling(window=52, min_periods=26).min()
+    max_price_52 = df["close"].rolling(window=52, min_periods=26).max()
+    df["price_percentile_52w"] = np.where((max_price_52 - min_price_52) > 0, (df["close"] - min_price_52) / (max_price_52 - min_price_52) * 100, 50.0)
+    
     return df
+
 
 def get_latest_signals(df):
     """Extract and format active signals for the latest week."""
@@ -281,6 +291,19 @@ def generate_holistic_report(market_name, use_combined=False):
     
     context = f"**📊 Контекст рынка (Цена):** За последнюю неделю цена {wow_trend} до отметки ${price_now:,.2f}. В разрезе месяца актив находится в фазе {mom_trend}."
     
+    # Asset price state
+    price_z = latest_am["price_zscore_52w"]
+    price_pct = latest_am["price_percentile_52w"]
+    if price_pct >= 95.0 and price_z >= 2.0:
+        price_state = "🔴 ПЕРЕГРЕТ (Критическая перекупленность)"
+    elif price_pct >= 80.0 or price_z >= 1.5:
+        price_state = "🟡 ПЕРЕКУПЛЕН"
+    elif price_pct <= 20.0 or price_z <= -1.5:
+        price_state = "🟢 ПЕРЕПРОДАН"
+    else:
+        price_state = "⚪ НЕЙТРАЛЬНО"
+    context += f"\n* 📈 **Состояние актива:** Цена находится в состоянии **{price_state}** (Z-Score: **{price_z:.2f} std**, годовой перцентиль: **{price_pct:.1f}%**)."
+    
     # Open Interest Dynamics
     oi_now = latest_am["open_interest"]
     oi_1w_ago = am_df["open_interest"].iloc[-2] if len(am_df) > 1 else oi_now
@@ -289,9 +312,10 @@ def generate_holistic_report(market_name, use_combined=False):
     
     # Get OI sentiment from Leveraged Funds
     oi_sentiment = latest_lf.get("oi_price_sentiment", "Neutral")
-    context += f" Открытый интерес {oi_word} на {abs(oi_pct_change):.1f}% и составляет {oi_now:,.0f} контрактов. Динамика OI-Price: *{oi_sentiment}*."
+    context += f"\n* 📊 **Открытый интерес:** {oi_word} на {abs(oi_pct_change):.1f}% и составляет {oi_now:,.0f} контрактов. Динамика OI-Price: *{oi_sentiment}*."
     
     # 2. Расстановка сил (Участники рынка)
+
     am_idx = latest_am["cot_index_net_pct_oi_156w"]
     lf_idx = latest_lf["cot_index_net_pct_oi_156w"]
     dl_idx = latest_dl["cot_index_net_pct_oi_156w"]

@@ -924,6 +924,55 @@ else:
     st.title(f"📊 {selected_market}")
     st.caption(f"Рынок: **{MARKETS[selected_market]['display_name']}** | Категория: **{selected_display}**")
     
+    # 0. Asset Price Metrics Columns
+    latest_row = df.iloc[-1]
+    price_now = latest_row["close"]
+    price_prev = df["close"].iloc[-2] if len(df) > 1 else price_now
+    price_change = price_now - price_prev
+    price_change_pct = (price_change / price_prev) * 100 if price_prev > 0 else 0.0
+    
+    price_z = latest_row.get("price_zscore_52w", 0.0)
+    price_pct = latest_row.get("price_percentile_52w", 50.0)
+    if pd.isna(price_z): price_z = 0.0
+    if pd.isna(price_pct): price_pct = 50.0
+    
+    if price_pct >= 95.0 and price_z >= 2.0:
+        price_state = "🔴 Перегрет"
+    elif price_pct >= 80.0 or price_z >= 1.5:
+        price_state = "🟡 Перекуплен"
+    elif price_pct <= 20.0 or price_z <= -1.5:
+        price_state = "🟢 Перепродан"
+    else:
+        price_state = "⚪ Нейтрально"
+        
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    with m_col1:
+        st.metric(
+            label="Цена актива",
+            value=f"${price_now:,.2f}" if price_now >= 1.0 else f"${price_now:,.4f}",
+            delta=f"{price_change_pct:+.2f}% за неделю",
+            delta_color="normal"
+        )
+    with m_col2:
+        st.metric(
+            label="Z-Score цены (52н)",
+            value=f"{price_z:.2f} std",
+            delta="Отклонение от среднего"
+        )
+    with m_col3:
+        st.metric(
+            label="Перцентиль цены (52н)",
+            value=f"{price_pct:.1f}%",
+            delta="Положение в диапазоне"
+        )
+    with m_col4:
+        st.metric(
+            label="Состояние актива (1г)",
+            value=price_state,
+            delta="Границы: 80% / 20%"
+        )
+
+    
     # Slice data for chart
     if weeks_to_show > 0:
         plot_df = df.tail(weeks_to_show).copy()
