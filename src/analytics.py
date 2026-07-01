@@ -1,7 +1,30 @@
 import pandas as pd
 import numpy as np
 import os
+import json
 from src.config import MARKETS, DATA_DIR_COT, DATA_DIR_PRICES, PARTICIPANTS_MAP
+
+def load_backtest_thresholds(market_name, participant_name):
+    """Load optimized backtest thresholds for a specific market and participant."""
+    defaults = {
+        "zscore_upper": 1.5,
+        "zscore_lower": -1.5,
+        "percentile_upper": 80.0,
+        "percentile_lower": 20.0,
+        "rule_type": "follow" if participant_name in ["Asset Manager", "Dealer"] else "contrarian"
+    }
+    
+    path = os.path.join("data", "backtest_thresholds.json")
+    if not os.path.exists(path):
+        return defaults
+        
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get(market_name, {}).get(participant_name, defaults)
+    except:
+        return defaults
+
 
 def load_and_prepare_data(market_name, participant_name, use_combined=False):
     """Load COT and Price CSVs, clean and dynamically extract the selected participant data."""
@@ -291,31 +314,46 @@ def generate_holistic_report(market_name, use_combined=False):
     
     context = f"**📊 Контекст рынка (Цена):** За последнюю неделю цена {wow_trend} до отметки ${price_now:,.2f}. В разрезе месяца актив находится в фазе {mom_trend}."
     
-    # Positioning States (52w)
+    # Positioning States (52w) with Backtest-Optimized Thresholds
+    thresh_lf = load_backtest_thresholds(market_name, "Leveraged Funds")
     lf_z = latest_lf.get("net_pct_oi_zscore_52w", 0.0)
     lf_pct = latest_lf.get("cot_index_net_pct_oi_52w", 50.0)
-    if lf_pct >= 95.0 and lf_z >= 2.0:
-        lf_state = "🔴 ПЕРЕГРЕТ (Спекулянты максимально перегружены покупками)"
-    elif lf_pct >= 80.0 or lf_z >= 1.5:
+    
+    lf_z_up = thresh_lf["zscore_upper"]
+    lf_z_low = thresh_lf["zscore_lower"]
+    lf_pct_up = thresh_lf["percentile_upper"]
+    lf_pct_low = thresh_lf["percentile_lower"]
+    
+    if lf_pct >= lf_pct_up and lf_z >= lf_z_up:
+        lf_state = f"🔴 ПЕРЕГРЕТ (Спекулянты перегружены покупками относительно бэктеста: Z >= {lf_z_up}, Pct >= {lf_pct_up}%)"
+    elif lf_pct >= lf_pct_up or lf_z >= lf_z_up:
         lf_state = "🟡 ПЕРЕКУПЛЕННОСТЬ"
-    elif lf_pct <= 20.0 or lf_z <= -1.5:
-        lf_state = "🟢 ПЕРЕПРОДАННОСТЬ (Спекулянты в максимальном шорте)"
+    elif lf_pct <= lf_pct_low or lf_z <= lf_z_low:
+        lf_state = f"🟢 ПЕРЕПРОДАННОСТЬ (Капитуляция спекулянтов относительно бэктеста: Z <= {lf_z_low}, Pct <= {lf_pct_low}%)"
     else:
         lf_state = "⚪ НЕЙТРАЛЬНО"
         
+    thresh_am = load_backtest_thresholds(market_name, "Asset Manager")
     am_z = latest_am.get("net_pct_oi_zscore_52w", 0.0)
     am_pct = latest_am.get("cot_index_net_pct_oi_52w", 50.0)
-    if am_pct >= 95.0 and am_z >= 2.0:
-        am_state = "🟢 МАКСИМАЛЬНЫЙ ЛОНГ (Институционалы на исторических хаях позиций)"
-    elif am_pct >= 80.0 or am_z >= 1.5:
-        am_state = "🟢 УВЕЛИЧЕННЫЙ ЛОНГ"
-    elif am_pct <= 20.0 or am_z <= -1.5:
-        am_state = "🔴 МИНИМАЛЬНЫЙ ЛОНГ (Институционалы сократили лонги до минимума)"
+    
+    am_z_up = thresh_am["zscore_upper"]
+    am_z_low = thresh_am["zscore_lower"]
+    am_pct_up = thresh_am["percentile_upper"]
+    am_pct_low = thresh_am["percentile_lower"]
+    
+    if am_pct >= am_pct_up and am_z >= am_z_up:
+        am_state = f"🟢 СИЛЬНЫЙ ЛОНГ (Институционалы накапливают относительно бэктеста: Z >= {am_z_up}, Pct >= {am_pct_up}%)"
+    elif am_pct >= am_pct_up or am_z >= am_z_up:
+        am_state = "🟢 ПОКУПКИ"
+    elif am_pct <= am_pct_low or am_z <= am_z_low:
+        am_state = f"🔴 СБРОС ЛОНГОВ (Институционалы вышли из покупок относительно бэктеста: Z <= {am_z_low}, Pct <= {am_pct_low}%)"
     else:
         am_state = "⚪ НЕЙТРАЛЬНО"
         
     context += f"\n* 🚀 **Позиционирование спекулянтов (1г):** Настроение хедж-фондов находится в состоянии **{lf_state}** (Z-Score: **{lf_z:.2f} std**, годовой перцентиль: **{lf_pct:.1f}%**)."
     context += f"\n* 🏛️ **Позиционирование институционалов (1г):** Настроение Asset Managers находится в состоянии **{am_state}** (Z-Score: **{am_z:.2f} std**, годовой перцентиль: **{am_pct:.1f}%**)."
+
 
     
     # Open Interest Dynamics

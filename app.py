@@ -395,7 +395,7 @@ def generate_interpretation_html(interp, market_name, participant_name):
     html += "</div>"  # close interp-card
     return html
 
-def draw_cot_chart(plot_df, market_name, chart_height=650):
+def draw_cot_chart(plot_df, market_name, participant_name, chart_height=650):
     fig = make_subplots(
         rows=3, cols=1, 
         shared_xaxes=True, 
@@ -411,6 +411,18 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
         mode="lines"
     ), row=1, col=1)
     
+    # Load backtest thresholds for active coloring and placement
+    from src.analytics import load_backtest_thresholds
+    thresh = load_backtest_thresholds(market_name, participant_name)
+    z_up = thresh["zscore_upper"]
+    z_low = thresh["zscore_lower"]
+    pct_up = thresh["percentile_upper"]
+    pct_low = thresh["percentile_lower"]
+    rule_type = thresh["rule_type"]
+    
+    color_up = "rgba(231, 76, 60, 0.6)" if rule_type == "contrarian" else "rgba(46, 204, 113, 0.6)"
+    color_low = "rgba(46, 204, 113, 0.6)" if rule_type == "contrarian" else "rgba(231, 76, 60, 0.6)"
+    
     # 2. Z-Score (52w) of Positions
     zscore_values = plot_df["net_pct_oi_zscore_52w"]
     fig.add_trace(go.Scatter(
@@ -422,9 +434,9 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
     ), row=2, col=1)
     
     # Add horizontal lines for Z-Score thresholds
-    fig.add_hline(y=1.5, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=2, col=1)
+    fig.add_hline(y=z_up, line_dash="dash", line_color=color_up, row=2, col=1)
     fig.add_hline(y=0.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
-    fig.add_hline(y=-1.5, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=2, col=1)
+    fig.add_hline(y=z_low, line_dash="dash", line_color=color_low, row=2, col=1)
     
     # 3. Percentile (52w) of Positions
     pct_values = plot_df["cot_index_net_pct_oi_52w"]
@@ -437,9 +449,9 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
     ), row=3, col=1)
     
     # Add horizontal lines for Percentile thresholds
-    fig.add_hline(y=80.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=3, col=1)
+    fig.add_hline(y=pct_up, line_dash="dash", line_color=color_up, row=3, col=1)
     fig.add_hline(y=50.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
-    fig.add_hline(y=20.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=3, col=1)
+    fig.add_hline(y=pct_low, line_dash="dash", line_color=color_low, row=3, col=1)
     
     fig.update_layout(
         height=chart_height, 
@@ -451,6 +463,7 @@ def draw_cot_chart(plot_df, market_name, chart_height=650):
         plot_bgcolor="rgba(0,0,0,0)", 
         hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter")
     )
+
     
     for r in [1, 2, 3]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
@@ -807,14 +820,15 @@ elif app_mode == "📈 Интерактивный Дашборд":
                             df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
                             if not df_am.empty:
                                 st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
-                                fig_am = draw_cot_chart(df_am.tail(52), asset)
+                                fig_am = draw_cot_chart(df_am.tail(52), asset, "Asset Manager")
                                 st.plotly_chart(fig_am, use_container_width=True)
                                 
                             df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
                             if not df_lf.empty:
                                 st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
-                                fig_lf = draw_cot_chart(df_lf.tail(52), asset)
+                                fig_lf = draw_cot_chart(df_lf.tail(52), asset, "Leveraged Funds")
                                 st.plotly_chart(fig_lf, use_container_width=True)
+
                         except:
                             pass
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('COT', 'Нет комментария')}</div>", unsafe_allow_html=True)
@@ -1028,8 +1042,9 @@ else:
         plot_df = df.copy()
         
     # Rebuild Plotly chart using the helper function
-    fig = draw_cot_chart(plot_df, selected_market, chart_height=650)
+    fig = draw_cot_chart(plot_df, selected_market, tff_participant, chart_height=650)
     st.plotly_chart(fig, use_container_width=True)
+
 
     
     st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")

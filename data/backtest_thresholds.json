@@ -1,0 +1,138 @@
+{
+    "S&P 500": {
+        "Asset Manager": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -2.0,
+            "percentile_upper": 85.0,
+            "percentile_lower": 25.0,
+            "rule_type": "follow",
+            "optimized": true
+        },
+        "Leveraged Funds": {
+            "zscore_upper": 2.0,
+            "zscore_lower": -1.0,
+            "percentile_upper": 90.0,
+            "percentile_lower": 20.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Retail": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -1.2,
+            "percentile_upper": 75.0,
+            "percentile_lower": 30.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Dealer": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -2.0,
+            "percentile_upper": 90.0,
+            "percentile_lower": 25.0,
+            "rule_type": "follow",
+            "optimized": true
+        }
+    },
+    "Nasdaq": {
+        "Asset Manager": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -1.8,
+            "percentile_upper": 80.0,
+            "percentile_lower": 10.0,
+            "rule_type": "follow",
+            "optimized": true
+        },
+        "Leveraged Funds": {
+            "zscore_upper": 1.2,
+            "zscore_lower": -1.5,
+            "percentile_upper": 85.0,
+            "percentile_lower": 10.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Retail": {
+            "zscore_upper": 1.2,
+            "zscore_lower": -1.5,
+            "percentile_upper": 70.0,
+            "percentile_lower": 15.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Dealer": {
+            "zscore_upper": 1.8,
+            "zscore_lower": -1.8,
+            "percentile_upper": 90.0,
+            "percentile_lower": 15.0,
+            "rule_type": "follow",
+            "optimized": true
+        }
+    },
+    "EUR": {
+        "Asset Manager": {
+            "zscore_upper": 1.8,
+            "zscore_lower": -2.0,
+            "percentile_upper": 90.0,
+            "percentile_lower": 20.0,
+            "rule_type": "follow",
+            "optimized": true
+        },
+        "Leveraged Funds": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -1.5,
+            "percentile_upper": 85.0,
+            "percentile_lower": 30.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Retail": {
+            "zscore_upper": 2.0,
+            "zscore_lower": -1.2,
+            "percentile_upper": 70.0,
+            "percentile_lower": 25.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Dealer": {
+            "zscore_upper": 1.2,
+            "zscore_lower": -1.0,
+            "percentile_upper": 75.0,
+            "percentile_lower": 10.0,
+            "rule_type": "follow",
+            "optimized": true
+        }
+    },
+    "BTC": {
+        "Asset Manager": {
+            "zscore_upper": 1.0,
+            "zscore_lower": -1.2,
+            "percentile_upper": 75.0,
+            "percentile_lower": 30.0,
+            "rule_type": "follow",
+            "optimized": true
+        },
+        "Leveraged Funds": {
+            "zscore_upper": 1.2,
+            "zscore_lower": -1.0,
+            "percentile_upper": 70.0,
+            "percentile_lower": 20.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Retail": {
+            "zscore_upper": 1.8,
+            "zscore_lower": -2.0,
+            "percentile_upper": 85.0,
+            "percentile_lower": 15.0,
+            "rule_type": "contrarian",
+            "optimized": true
+        },
+        "Dealer": {
+            "zscore_upper": 2.0,
+            "zscore_lower": -1.0,
+            "percentile_upper": 70.0,
+            "percentile_lower": 30.0,
+            "rule_type": "follow",
+            "optimized": true
+        }
+    }
+}
