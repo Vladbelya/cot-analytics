@@ -395,26 +395,72 @@ def generate_interpretation_html(interp, market_name, participant_name):
     html += "</div>"  # close interp-card
     return html
 
-def draw_cot_chart(plot_df, market_name, chart_height=450):
+def draw_cot_chart(plot_df, market_name, chart_height=650):
     fig = make_subplots(
-        rows=2, cols=1, 
+        rows=3, cols=1, 
         shared_xaxes=True, 
-        vertical_spacing=0.08,
-        row_heights=[0.55, 0.45]
+        vertical_spacing=0.06,
+        row_heights=[0.40, 0.30, 0.30]
     )
-    fig.add_trace(go.Scatter(x=plot_df["report_date"], y=plot_df["close"], name="Цена", line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), mode="lines"), row=1, col=1)
+    # 1. Price
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=plot_df["close"], 
+        name="Цена", 
+        line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), 
+        mode="lines"
+    ), row=1, col=1)
     
-    net_values = plot_df["net"]
-    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_values]
-    fig.add_trace(go.Bar(x=plot_df["report_date"], y=net_values, name="Разница (Long - Short)", marker_color=bar_colors, marker_line_width=0, hovertemplate="Дата: %{x}<br>Разница: %{y:,.0f}<extra></extra>"), row=2, col=1)
+    # 2. Z-Score (52w) of Price
+    zscore_values = plot_df["price_zscore_52w"]
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=zscore_values, 
+        name="Z-Score цены (52н)", 
+        line=dict(color="#f39c12", width=2.0), 
+        mode="lines"
+    ), row=2, col=1)
     
-    fig.update_layout(height=chart_height, template="plotly_dark", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(l=20, r=20, t=30, b=20), hovermode="x unified", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter"))
-    for r in [1, 2]:
+    # Add horizontal lines for Z-Score thresholds
+    fig.add_hline(y=1.5, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=2, col=1)
+    fig.add_hline(y=0.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
+    fig.add_hline(y=-1.5, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=2, col=1)
+    
+    # 3. Percentile (52w) of Price
+    pct_values = plot_df["price_percentile_52w"]
+    fig.add_trace(go.Scatter(
+        x=plot_df["report_date"], 
+        y=pct_values, 
+        name="Перцентиль цены (52н)", 
+        line=dict(color="#3498db", width=2.0), 
+        mode="lines"
+    ), row=3, col=1)
+    
+    # Add horizontal lines for Percentile thresholds
+    fig.add_hline(y=80.0, line_dash="dash", line_color="rgba(231, 76, 60, 0.6)", row=3, col=1)
+    fig.add_hline(y=50.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
+    fig.add_hline(y=20.0, line_dash="dash", line_color="rgba(46, 204, 113, 0.6)", row=3, col=1)
+    
+    fig.update_layout(
+        height=chart_height, 
+        template="plotly_dark", 
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), 
+        margin=dict(l=20, r=20, t=30, b=20), 
+        hovermode="x unified", 
+        paper_bgcolor="rgba(0,0,0,0)", 
+        plot_bgcolor="rgba(0,0,0,0)", 
+        hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter")
+    )
+    
+    for r in [1, 2, 3]:
         fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
         fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
+        
     fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Разница Long - Short", row=2, col=1)
+    fig.update_yaxes(title_text="Z-Score цены", row=2, col=1)
+    fig.update_yaxes(title_text="Перцентиль цены (%)", row=3, col=1)
     return fig
+
 
 def draw_flows_chart(plot_df, market_name, chart_height=750):
     fig = make_subplots(
@@ -980,8 +1026,9 @@ else:
         plot_df = df.copy()
         
     # Rebuild Plotly chart using the helper function
-    fig = draw_cot_chart(plot_df, selected_market, chart_height=500)
+    fig = draw_cot_chart(plot_df, selected_market, chart_height=650)
     st.plotly_chart(fig, use_container_width=True)
+
     
     st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")
     fig2 = draw_flows_chart(plot_df, selected_market, chart_height=750)
