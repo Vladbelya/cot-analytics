@@ -429,58 +429,38 @@ def display_backtest_stats_table(df, market_name, participant_name):
     """
     st.markdown(summary_html, unsafe_allow_html=True)
         
-    html = """
-    <table class="cot-table">
-    <thead>
-    <tr>
-    <th style="text-align: left; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СИГНАЛ (ОЖИДАНИЕ)</th>
-    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">КОЛ-ВО</th>
-    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">WIN RATE (+4н)</th>
-    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">WIN RATE (+12н)</th>
-    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СРЕДНИЙ RETURN (+4н)</th>
-    <th style="text-align: right; font-size: 0.85em; color: #6b7280; padding: 10px 16px;">СРЕДНИЙ RETURN (+12н)</th>
-    </tr>
-    </thead>
-    <tbody>
-    """
-
-    
+    # Prepare data for native st.dataframe
+    import pandas as pd
+    rows = []
     for item in stats:
-        icon = item["icon"]
-        name = item["name"]
-        direction = "BUY" if item["direction"] == "bullish" else "SELL"
+        name = f"{item['icon']} {item['name']} ({'BUY' if item['direction'] == 'bullish' else 'SELL'})"
         count = item["count"]
         
-        # Get 4w and 12w stats
         h4 = item["horizons"].get(4, {})
         h12 = item["horizons"].get(12, {})
         
-        wr_4 = f"{h4.get('win_rate', '—')}%" if "win_rate" in h4 else "—"
-        wr_12 = f"{h12.get('win_rate', '—')}%" if "win_rate" in h12 else "—"
+        wr_4 = f"{h4['win_rate']}%" if "win_rate" in h4 else "—"
+        wr_12 = f"{h12['win_rate']}%" if "win_rate" in h12 else "—"
         
-        ret_4 = f"{h4.get('mean_return', 0.0):+.2f}%" if "mean_return" in h4 else "—"
-        ret_12 = f"{h12.get('mean_return', 0.0):+.2f}%" if "mean_return" in h12 else "—"
+        ret_4 = f"{h4['mean_return']:+.2f}%" if "mean_return" in h4 else "—"
+        ret_12 = f"{h12['mean_return']:+.2f}%" if "mean_return" in h12 else "—"
         
-        dir_color = "#10b981" if item["direction"] == "bullish" else "#ef4444"
+        rows.append({
+            "Сигнал (Ожидание)": name,
+            "Кол-во сигналов": count,
+            "Win Rate (+4н)": wr_4,
+            "Win Rate (+12н)": wr_12,
+            "Ср. доходность (+4н)": ret_4,
+            "Ср. доходность (+12н)": ret_12
+        })
         
-        html += f"""
-        <tr>
-        <td style="text-align: left; padding: 10px 16px;">
-        {icon} <strong>{name}</strong> <span style="color: {dir_color}; font-size: 0.85em; margin-left: 5px;">({direction})</span>
-        </td>
-        <td class="font-mono" style="text-align: right; padding: 10px 16px;">{count}</td>
-        <td class="font-mono" style="text-align: right; padding: 10px 16px; font-weight: bold; color: {dir_color if h4.get('win_rate', 50) > 55 or h4.get('win_rate', 50) < 45 else '#ffffff'}">{wr_4}</td>
-        <td class="font-mono" style="text-align: right; padding: 10px 16px; font-weight: bold; color: {dir_color if h12.get('win_rate', 50) > 55 or h12.get('win_rate', 50) < 45 else '#ffffff'}">{wr_12}</td>
-        <td class="font-mono" style="text-align: right; padding: 10px 16px; color: {'#10b981' if h4.get('mean_return', 0) > 0 else '#ef4444'}">{ret_4}</td>
-        <td class="font-mono" style="text-align: right; padding: 10px 16px; color: {'#10b981' if h12.get('mean_return', 0) > 0 else '#ef4444'}">{ret_12}</td>
-        </tr>
-        """
-        
-    html += """
-    </tbody>
-    </table>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    backtest_df = pd.DataFrame(rows)
+    st.dataframe(
+        backtest_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
 
 # Helper to generate the interpretation HTML block
 def generate_interpretation_html(interp, market_name, participant_name):
