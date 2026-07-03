@@ -464,3 +464,84 @@ def fetch_btc_price_history_binance():
         pass
         
     return pd.DataFrame()
+
+
+def calculate_historical_gex_heatmap(gex_df, df_hist):
+    """
+    Simulates historical GEX profiles by recalculating GEX at historical spot prices
+    using the current option chain structure.
+    """
+    if gex_df.empty or df_hist.empty:
+        return [], [], np.zeros((0,0)), [], []
+        
+    # We will use 40 time steps from df_hist to keep it extremely fast
+    step = max(1, len(df_hist) // 40)
+    df_sampled = df_hist.iloc[::step].copy()
+    
+    # Define strike range: +/- 8% of current spot price in steps of 500
+    current_spot = float(df_hist["close"].iloc[-1])
+    min_strike = int((current_spot * 0.92) // 500) * 500
+    max_strike = int((current_spot * 1.08) // 500) * 500
+    strikes_range = list(range(min_strike, max_strike + 500, 500))
+    
+    times = df_sampled["datetime"].tolist()
+    spots = df_sampled["close"].tolist()
+    
+    opt_strikes = gex_df["strike"].values
+    opt_expiries = gex_df["expiry_dt"].values
+    opt_ois = gex_df["open_interest"].values
+    opt_sizes = gex_df["contract_size"].values
+    opt_dirs = gex_df["direction"].values
+    opt_ivs = gex_df["implied_volatility"].values
+    
+    z_matrix = np.zeros((len(strikes_range), len(df_sampled)))
+    flips = []
+    
+    for t_idx, (t_val, s_val) in enumerate(zip(times, spots)):
+        t_val_naive = t_val.replace(tzinfo=None) if hasattr(t_val, "tzinfo") and t_val.tzinfo is not None else t_val
+        # Time to maturity for each option in years at this historical time
+        ts = []
+        for exp in opt_expiries:
+            exp_naive = exp.replace(tzinfo=None) if hasattr(exp, "tzinfo") and exp.tzinfo is not None else exp
+            dt_sec = (exp_naive - t_val_naive).total_seconds()
+            ts.append(max(1.0, dt_sec) / (365.0 * 24.0 * 3600.0))
+        ts = np.array(ts)
+        
+        # Calculate gammas for the option chain at spot s_val
+        gammas = calculate_gamma_vectorized(
+            spots=np.full_like(opt_strikes, s_val),
+            strikes=opt_strikes,
+            ts=ts,
+            ivs=opt_ivs
+        )
+        
+        # Dollar GEX
+        gex_vals = gammas * opt_ois * opt_sizes * (s_val ** 2) * 0.01 * opt_dirs
+        
+        # Distribute the GEX values to the nearest strikes in strikes_range
+        for strike, gex in zip(opt_strikes, gex_vals):
+            if min_strike <= strike <= max_strike:
+                s_idx = min(range(len(strikes_range)), key=lambda i: abs(strikes_range[i] - strike))
+                z_matrix[s_idx, t_idx] += gex
+                
+        # Calculate the Gamma Flip point at this spot
+        sim_spots = np.linspace(s_val * 0.8, s_val * 1.2, 30)
+        sim_net_gex = []
+        for sim_s in sim_spots:
+            sim_gammas = calculate_gamma_vectorized(
+                spots=np.full_like(opt_strikes, sim_s),
+                strikes=opt_strikes,
+                ts=ts,
+                ivs=opt_ivs
+            )
+            sim_gex_vals = sim_gammas * opt_ois * opt_sizes * (sim_s ** 2) * 0.01 * opt_dirs
+            sim_net_gex.append(float(np.sum(sim_gex_vals)))
+            
+        flip = None
+        for i in range(len(sim_net_gex) - 1):
+            if (sim_net_gex[i] <= 0 and sim_net_gex[i+1] > 0) or (sim_net_gex[i] >= 0 and sim_net_gex[i+1] < 0):
+                flip = float(sim_spots[i] + (0 - sim_net_gex[i]) * (sim_spots[i+1] - sim_spots[i]) / (sim_net_gex[i+1] - sim_net_gex[i]))
+                break
+        flips.append(flip if flip else s_val)
+        
+    return strikes_range, times, z_matrix, spots, flips

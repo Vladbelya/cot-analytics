@@ -974,204 +974,269 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     st.markdown(full_badges_html, unsafe_allow_html=True)
     
-    # ------------------ GEX Tabs Navigation ------------------
-    gex_tab1, gex_tab2, gex_tab3 = st.tabs([
-        "⚡ Now (Текущие уровни)", 
-        "📅 Expiry (По экспирациям)", 
-        "🔮 Forecast (Прогноз)"
-    ])
+    # GEX Profile & Price History Subplot Chart
+    st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
+    st.caption("Слева: Свечной график цены BTC за последние 7 дней с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
     
-    with gex_tab1:
-        st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
-        st.caption("Слева: График цены BTC за последние 7 дней с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
+    with st.spinner("Загрузка истории котировок BTC..."):
+        df_hist = fetch_btc_price_history_binance()
         
-        with st.spinner("Загрузка истории котировок BTC..."):
-            df_hist = fetch_btc_price_history_binance()
-            
-        fig_gex = make_subplots(
-            rows=1, cols=2, 
-            shared_yaxes=True, 
-            column_widths=[0.85, 0.15],
-            horizontal_spacing=0.01,
-            subplot_titles=("Цена BTC (7 дней)", "GEX Профиль")
-        )
-        
-        if not df_hist.empty:
-            fig_gex.add_trace(
-                go.Candlestick(
-                    x=df_hist["datetime"],
-                    open=df_hist["open"],
-                    high=df_hist["high"],
-                    low=df_hist["low"],
-                    close=df_hist["close"],
-                    name="Цена BTC",
-                    increasing_line_color="#10b981",
-                    decreasing_line_color="#ef4444",
-                    hoverinfo="all"
-                ),
-                row=1, col=1
-            )
-            x_min = df_hist["datetime"].min()
-            x_max = df_hist["datetime"].max()
-        else:
-            x_min = datetime.now() - timedelta(days=7)
-            x_max = datetime.now()
-            
-        strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
-        filtered_strike_gex = strike_gex[
-            (strike_gex["strike"] >= spot_price * 0.85) & 
-            (strike_gex["strike"] <= spot_price * 1.15)
-        ].copy()
-        
-        if filtered_strike_gex.empty:
-            filtered_strike_gex = strike_gex.copy()
-            
-        colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
-        borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
-        
+    fig_gex = make_subplots(
+        rows=1, cols=2, 
+        shared_yaxes=True, 
+        column_widths=[0.85, 0.15],
+        horizontal_spacing=0.01,
+        subplot_titles=("Цена BTC (7 дней)", "GEX Профиль")
+    )
+    
+    # 1. Price History Candlestick Chart (Col 1)
+    if not df_hist.empty:
         fig_gex.add_trace(
-            go.Bar(
-                x=filtered_strike_gex["gex"],
-                y=filtered_strike_gex["strike"],
-                orientation="h",
-                marker=dict(
-                    color=colors,
-                    line=dict(color=borders, width=1.5)
-                ),
-                name="Gamma Exposure",
-                hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
+            go.Candlestick(
+                x=df_hist["datetime"],
+                open=df_hist["open"],
+                high=df_hist["high"],
+                low=df_hist["low"],
+                close=df_hist["close"],
+                name="Цена BTC",
+                increasing_line_color="#10b981",
+                decreasing_line_color="#ef4444",
+                hoverinfo="all"
             ),
-            row=1, col=2
+            row=1, col=1
         )
+        x_min = df_hist["datetime"].min()
+        x_max = df_hist["datetime"].max()
+    else:
+        x_min = datetime.now() - timedelta(days=7)
+        x_max = datetime.now()
         
-        # Shapes
-        if p1 and p2:
-            fig_gex.add_shape(
-                type="rect",
-                x0=x_min, x1=x_max,
-                y0=min(p1, p2), y1=max(p1, p2),
-                fillcolor="rgba(16, 185, 129, 0.08)",
-                line=dict(width=0),
-                layer="below",
-                row=1, col=1
-            )
-        if n1 and n2:
-            fig_gex.add_shape(
-                type="rect",
-                x0=x_min, x1=x_max,
-                y0=min(n1, n2), y1=max(n1, n2),
-                fillcolor="rgba(239, 68, 68, 0.08)",
-                line=dict(width=0),
-                layer="below",
-                row=1, col=1
-            )
-        if a1 and a2:
-            fig_gex.add_shape(
-                type="rect",
-                x0=x_min, x1=x_max,
-                y0=min(a1, a2), y1=max(a1, a2),
-                fillcolor="rgba(139, 92, 246, 0.05)",
-                line=dict(width=0),
-                layer="below",
-                row=1, col=1
-            )
-        if flip_price:
-            fig_gex.add_shape(
-                type="rect",
-                x0=x_min, x1=x_max,
-                y0=flip_price - 150, y1=flip_price + 150,
-                fillcolor="rgba(236, 72, 153, 0.08)",
-                line=dict(width=0),
-                layer="below",
-                row=1, col=1
-            )
+    # 2. GEX Profile Bar (Col 2)
+    strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
+    # Focus range +/- 15% of spot
+    filtered_strike_gex = strike_gex[
+        (strike_gex["strike"] >= spot_price * 0.85) & 
+        (strike_gex["strike"] <= spot_price * 1.15)
+    ].copy()
+    
+    if filtered_strike_gex.empty:
+        filtered_strike_gex = strike_gex.copy()
+        
+    colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
+    borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
+    
+    fig_gex.add_trace(
+        go.Bar(
+            x=filtered_strike_gex["gex"],
+            y=filtered_strike_gex["strike"],
+            orientation="h",
+            marker=dict(
+                color=colors,
+                line=dict(color=borders, width=1.5)
+            ),
+            name="Gamma Exposure",
+            hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
+        ),
+        row=1, col=2
+    )
+    
+    # 3. Add Colored GEX Level Bands (Green for Resist, Red for Trigger, Purple for Magnet, Pink for Flip)
+    if p1 and p2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(p1, p2), y1=max(p1, p2),
+            fillcolor="rgba(16, 185, 129, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    if n1 and n2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(n1, n2), y1=max(n1, n2),
+            fillcolor="rgba(239, 68, 68, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    if a1 and a2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(a1, a2), y1=max(a1, a2),
+            fillcolor="rgba(139, 92, 246, 0.05)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    if flip_price:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=flip_price - 150, y1=flip_price + 150,
+            fillcolor="rgba(236, 72, 153, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
 
-        levels_to_draw = []
-        if p2: levels_to_draw.append((p2, "P2", "#10b981", "Gamma Resist 2"))
-        if p1: levels_to_draw.append((p1, "P1", "#10b981", "Gamma Resist 1"))
-        if a2: levels_to_draw.append((a2, "A2", "#8b5cf6", "Magnet 2"))
-        if a1: levels_to_draw.append((a1, "A1", "#8b5cf6", "Magnet 1"))
-        if flip_price: levels_to_draw.append((flip_price, "Г", "#ec4899", "Gamma Flip"))
-        if n1: levels_to_draw.append((n1, "N1", "#ef4444", "Vol Trigger 1"))
-        if n2: levels_to_draw.append((n2, "N2", "#ef4444", "Vol Trigger 2"))
-        if v_level: levels_to_draw.append((v_level, "V", "#f97316", "Max Volatility"))
-        if s_level: levels_to_draw.append((s_level, "S", "#10b981", "Max Stability"))
+    # 4. Add Horizontal Levels to Column 1 (Price) with staggered labels for overlaps
+    levels_to_draw = []
+    if p2: levels_to_draw.append((p2, "P2", "#10b981", "Gamma Resist 2"))
+    if p1: levels_to_draw.append((p1, "P1", "#10b981", "Gamma Resist 1"))
+    if a2: levels_to_draw.append((a2, "A2", "#8b5cf6", "Magnet 2"))
+    if a1: levels_to_draw.append((a1, "A1", "#8b5cf6", "Magnet 1"))
+    if flip_price: levels_to_draw.append((flip_price, "Г", "#ec4899", "Gamma Flip"))
+    if n1: levels_to_draw.append((n1, "N1", "#ef4444", "Vol Trigger 1"))
+    if n2: levels_to_draw.append((n2, "N2", "#ef4444", "Vol Trigger 2"))
+    if v_level: levels_to_draw.append((v_level, "V", "#f97316", "Max Volatility"))
+    if s_level: levels_to_draw.append((s_level, "S", "#10b981", "Max Stability"))
+    
+    levels_to_draw = sorted([x for x in levels_to_draw if x[0] is not None], key=lambda x: x[0])
+    
+    strike_counts = {}
+    for val, name, color, desc in levels_to_draw:
+        if spot_price * 0.85 <= val <= spot_price * 1.15:
+            fig_gex.add_shape(
+                type="line",
+                x0=x_min, x1=x_max,
+                y0=val, y1=val,
+                line=dict(color=color, width=1.5, dash="dash"),
+                row=1, col=1
+            )
+            
+            rounded_strike = int(round(val))
+            count = strike_counts.get(rounded_strike, 0)
+            strike_counts[rounded_strike] = count + 1
+            
+            offset_hours = count * 18
+            label_x = x_max - timedelta(hours=offset_hours)
+            
+            fig_gex.add_annotation(
+                x=label_x,
+                y=val,
+                text=f"<b>{name}</b> {val:,.0f}",
+                showarrow=False,
+                xanchor="right" if count > 0 else "left",
+                yanchor="middle",
+                font=dict(color="#ffffff", size=9, family="SF Mono, Courier New, monospace"),
+                bgcolor=color,
+                bordercolor=color,
+                borderwidth=1,
+                borderpad=2,
+                row=1, col=1
+            )
+            
+    fig_gex.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color="#94a3b8", size=12),
+        margin=dict(l=0, r=60, t=30, b=0),
+        height=600,
+        showlegend=False,
+        xaxis_rangeslider_visible=False,
+        yaxis=dict(
+            title="Цена BTC / Страйк ($)",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)",
+            tickformat="$,.0f",
+            range=[spot_price * 0.85, spot_price * 1.15]
+        ),
+        xaxis=dict(
+            title="Дата/Время",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)"
+        ),
+        xaxis2=dict(
+            title="GEX ($ / 1%)",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)"
+        )
+    )
+    st.plotly_chart(fig_gex, use_container_width=True)
+    
+    # ------------------ GEX History Heatmap Section ------------------
+    st.markdown("---")
+    st.markdown("### 📈 Тепловая карта гамма-экспозиции (GEX History Heatmap)")
+    st.caption("Историческое распределение концентрации GEX дилеров по страйкам за последние 7 дней. Белая линия — спотовая цена BTC, розовая пунктирная линия — динамический уровень Gamma Flip.")
+    
+    with st.spinner("Генерация исторической тепловой карты GEX..."):
+        from src.gex_engine import calculate_historical_gex_heatmap
+        h_strikes, h_times, h_z, h_spots, h_flips = calculate_historical_gex_heatmap(gex_df, df_hist)
         
-        levels_to_draw = sorted([x for x in levels_to_draw if x[0] is not None], key=lambda x: x[0])
+    if h_times:
+        fig_heat = go.Figure()
         
-        strike_counts = {}
-        for val, name, color, desc in levels_to_draw:
-            if spot_price * 0.85 <= val <= spot_price * 1.15:
-                fig_gex.add_shape(
-                    type="line",
-                    x0=x_min, x1=x_max,
-                    y0=val, y1=val,
-                    line=dict(color=color, width=1.5, dash="dash"),
-                    row=1, col=1
-                )
-                
-                rounded_strike = int(round(val))
-                count = strike_counts.get(rounded_strike, 0)
-                strike_counts[rounded_strike] = count + 1
-                
-                offset_hours = count * 18
-                label_x = x_max - timedelta(hours=offset_hours)
-                
-                fig_gex.add_annotation(
-                    x=label_x,
-                    y=val,
-                    text=f"<b>{name}</b> {val:,.0f}",
-                    showarrow=False,
-                    xanchor="right" if count > 0 else "left",
-                    yanchor="middle",
-                    font=dict(color="#ffffff", size=9, family="SF Mono, Courier New, monospace"),
-                    bgcolor=color,
-                    bordercolor=color,
-                    borderwidth=1,
-                    borderpad=2,
-                    row=1, col=1
-                )
-                
-        fig_gex.update_layout(
+        fig_heat.add_trace(go.Heatmap(
+            x=h_times,
+            y=h_strikes,
+            z=h_z / 1e6, # Millions
+            colorscale="RdYlGn",
+            zmid=0,
+            colorbar=dict(title="Net GEX ($M)", tickformat="+,.1f"),
+            hovertemplate="<b>Время:</b> %{x}<br><b>Страйк:</b> $%{y:,.0f}<br><b>Net GEX:</b> %{z:+.2f}M<extra></extra>"
+        ))
+        
+        fig_heat.add_trace(go.Scatter(
+            x=h_times,
+            y=h_spots,
+            mode="lines",
+            line=dict(color="#ffffff", width=2.5),
+            name="Цена Spot BTC",
+            hovertemplate="<b>Цена BTC:</b> $%{y:,.2f}<extra></extra>"
+        ))
+        
+        fig_heat.add_trace(go.Scatter(
+            x=h_times,
+            y=h_flips,
+            mode="lines",
+            line=dict(color="#ec4899", width=2, dash="dash"),
+            name="Gamma Flip",
+            hovertemplate="<b>Gamma Flip:</b> $%{y:,.2f}<extra></extra>"
+        ))
+        
+        fig_heat.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Inter, sans-serif", color="#94a3b8", size=12),
-            margin=dict(l=0, r=60, t=30, b=0),
-            height=600,
-            showlegend=False,
-            xaxis_rangeslider_visible=False,
-            yaxis=dict(
-                title="Цена BTC / Страйк ($)",
-                gridcolor="rgba(255,255,255,0.05)",
-                zerolinecolor="rgba(255,255,255,0.05)",
-                tickformat="$,.0f",
-                range=[spot_price * 0.85, spot_price * 1.15]
-            ),
+            font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=500,
             xaxis=dict(
-                title="Дата/Время",
-                gridcolor="rgba(255,255,255,0.05)",
-                zerolinecolor="rgba(255,255,255,0.05)"
+                gridcolor="rgba(255,255,255,0.03)",
+                zerolinecolor="rgba(255,255,255,0.03)"
             ),
-            xaxis2=dict(
-                title="GEX ($ / 1%)",
-                gridcolor="rgba(255,255,255,0.05)",
-                zerolinecolor="rgba(255,255,255,0.05)"
+            yaxis=dict(
+                gridcolor="rgba(255,255,255,0.03)",
+                zerolinecolor="rgba(255,255,255,0.03)",
+                tickformat="$,.0f"
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
             )
         )
-        st.plotly_chart(fig_gex, use_container_width=True)
+        st.plotly_chart(fig_heat, use_container_width=True)
+    else:
+        st.info("Исторические данные отсутствуют.")
         
-        st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
-        top_gex_df = gex_df.copy()
-        top_gex_df["abs_gex"] = top_gex_df["gex"].abs()
-        top_gex_df = top_gex_df.sort_values("abs_gex", ascending=False).head(20)
+    # Top-20 Table
+    st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
+    top_gex_df = gex_df.copy()
+    top_gex_df["abs_gex"] = top_gex_df["gex"].abs()
+    top_gex_df = top_gex_df.sort_values("abs_gex", ascending=False).head(20)
+    
+    rows_html = ""
+    for _, row in top_gex_df.iterrows():
+        gex_val = row["gex"]
+        gex_cls = "net-positive" if gex_val >= 0 else "net-negative"
+        gex_str = f"${gex_val:,.2f}"
         
-        rows_html = ""
-        for _, row in top_gex_df.iterrows():
-            gex_val = row["gex"]
-            gex_cls = "net-positive" if gex_val >= 0 else "net-negative"
-            gex_str = f"${gex_val:,.2f}"
-            
-            rows_html += f"""<tr>
+        rows_html += f"""<tr>
 <td style="text-align: left; padding: 10px 16px;">{row['exchange']}</td>
 <td class="font-mono" style="text-align: right; padding: 10px 16px; color:#ffffff; font-weight:600;">${row['strike']:,.0f}</td>
 <td style="text-align: right; padding: 10px 16px;">{row['expiry_str']}</td>
@@ -1182,8 +1247,8 @@ elif app_mode == "🌊 BTC GEX Трекер":
 <span class="{gex_cls} font-mono" style="padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 110px; text-align: right;">{gex_str}</span>
 </td>
 </tr>"""
-            
-        table_html = f"""<div class="cot-table-container">
+        
+    table_html = f"""<div class="cot-table-container">
 <table class="cot-table">
 <thead>
 <tr>
@@ -1201,200 +1266,27 @@ elif app_mode == "🌊 BTC GEX Трекер":
 </tbody>
 </table>
 </div>"""
-        st.markdown(table_html, unsafe_allow_html=True)
+    st.markdown(table_html, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("📚 Справочник GEX-уровней и правила интерпретации", expanded=True):
+        st.markdown("""
+        ### 🧭 Как интерпретировать уровни гамма-экспозиции (GEX):
         
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("📚 Справочник GEX-уровней и правила интерпретации", expanded=True):
-            st.markdown("""
-            ### 🧭 Как интерпретировать уровни гамма-экспозиции (GEX):
-            
-            * **Режим Гаммы (Gamma Regime):**
-              * **🟢 Положительная Гамма (Цена выше Г / Зеленая зона):** Рынок спокойный. Дилеры совершают сделки против движения цены (продают на росте, покупают на падении), подавляя волатильность. Цена обычно флэтит или медленно дрейфует.
-              * **🔴 Отрицательная Гамма (Цена ниже Г / Красная зона):** Рынок волатильный. Дилеры совершают сделки в направлении движения цены (продают при падении, покупают при росте), усиливая тренд. Возможны резкие проскальзывания, импульсы и повышенная скорость движений.
-             
-            * **Ключевые уровни:**
-              * **Г (Gamma Flip / Regime Change):** «Линия на песке». Точка перехода между стабильностью и хаосом.
-              * **P1 / P2 (Gamma Resist.):** Уровни сильного сопротивления (Call-стены). Чем больше объем (+M), тем сложнее цене пробить этот уровень вверх.
-              * **N1 / N2 (Vol. Trigger):** Уровни сильной поддержки / триггеры падения. Пробитие N1 вниз часто открывает дорогу к N2 и вызывает резкое падение.
-              * **A1 / A2 (Magnet):** Уровни притяжения (магниты). Цена стремится застрять на них, особенно по пятницам в день экспирации опционов (пин-риск).
-              * **V (Max Volatility) и S (Max Stability):** Экстремальные границы зоны. Выход за них означает переход в фазу сильного тренда (выше S) или панического обвала (ниже V).
-            """)
-
-    with gex_tab2:
-        col_left, col_right = st.columns([1, 1])
+        * **Режим Гаммы (Gamma Regime):**
+          * **🟢 Положительная Гамма (Цена выше Г / Зеленая зона):** Рынок спокойный. Дилеры совершают сделки против движения цены (продают на росте, покупают на падении), подавляя волатильность. Цена обычно флэтит или медленно дрейфует.
+          * **🔴 Отрицательная Гамма (Цена ниже Г / Красная зона):** Рынок волатильный. Дилеры совершают сделки в направлении движения цены (продают при падении, покупают при росте), усиливая тренд. Возможны резкие проскальзывания, импульсы и повышенная скорость движений.
+         
+        * **Ключевые уровни:**
+          * **Г (Gamma Flip / Regime Change):** «Линия на песке». Точка перехода между стабильностью и хаосом.
+          * **P1 / P2 (Gamma Resist.):** Уровни сильного сопротивления (Call-стены). Чем больше объем (+M), тем сложнее цене пробить этот уровень вверх.
+          * **N1 / N2 (Vol. Trigger):** Уровни сильной поддержки / триггеры падения. Пробитие N1 вниз часто открывает дорогу к N2 и вызывает резкое падение.
+          * **A1 / A2 (Magnet):** Уровни притяжения (магниты). Цена стремится застрять на них, особенно по пятницам в день экспирации опционов (пин-риск).
+          * **V (Max Volatility) и S (Max Stability):** Экстремальные границы зоны. Выход за них означает переход в фазу сильного тренда (выше S) или панического обвала (ниже V).
+        """)
         
-        with col_left:
-            st.markdown("### 📅 Сроки экспирации и открытый интерес")
-            st.caption("Гамма-экспозиция, сгруппированная по датам экспирации.")
-            
-            expiry_gex = gex_df.groupby("expiry_str").agg(
-                gex=("gex", "sum"),
-                oi=("open_interest", "sum")
-            ).reset_index()
-            
-            expiry_gex["dt"] = expiry_gex["expiry_str"].apply(lambda x: parse_expiry_date_robust(x, "deribit"))
-            expiry_gex = expiry_gex.dropna(subset=["dt"]).sort_values("dt")
-            
-            fig_expiry = go.Figure()
-            fig_expiry.add_trace(go.Bar(
-                x=expiry_gex["expiry_str"],
-                y=expiry_gex["gex"],
-                marker=dict(
-                    color="rgba(52, 152, 219, 0.6)",
-                    line=dict(color="#3498db", width=1.5)
-                ),
-                hovertemplate="<b>Дата:</b> %{x}<br><b>GEX:</b> $%{y:,.2f}<extra></extra>"
-            ))
-            
-            fig_expiry.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
-                margin=dict(l=0, r=0, t=10, b=0),
-                height=350,
-                xaxis=dict(
-                    gridcolor="rgba(255,255,255,0.03)",
-                    zerolinecolor="rgba(255,255,255,0.03)"
-                ),
-                yaxis=dict(
-                    gridcolor="rgba(255,255,255,0.03)",
-                    zerolinecolor="rgba(255,255,255,0.03)",
-                    tickformat="$,.0f"
-                ),
-                showlegend=False
-            )
-            st.plotly_chart(fig_expiry, use_container_width=True)
-            
-        with col_right:
-            st.markdown("### 🏢 Доля бирж в совокупной гамме")
-            st.caption("Процентное распределение Гамма Экспозиции по биржам.")
-            
-            exch_gex = gex_df.groupby("exchange")["gex"].apply(lambda x: x.abs().sum()).reset_index()
-            
-            fig_pie = go.Figure(go.Pie(
-                labels=exch_gex["exchange"],
-                values=exch_gex["gex"],
-                hole=0.4,
-                marker=dict(colors=["#10b981", "#3498db", "#f59e0b"]),
-                textinfo="percent+label",
-                hovertemplate="<b>Биржа:</b> %{label}<br><b>Абс. Гамма:</b> $%{value:,.2f}<extra></extra>"
-            ))
-            
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
-                margin=dict(l=0, r=0, t=10, b=0),
-                height=350,
-                showlegend=False
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-    with gex_tab3:
-        st.markdown("### 🔮 Опционно-модифицированное моделирование Монте-Карло")
-        st.caption("Симуляция будущих траекторий цены BTC с учетом демпфирующего / разгоняющего влияния GEX дилеров.")
-        
-        atm_options = gex_df[(gex_df["strike"] >= spot_price * 0.95) & (gex_df["strike"] <= spot_price * 1.05)]
-        if not atm_options.empty:
-            avg_iv = float(atm_options["implied_volatility"].mean())
-        else:
-            avg_iv = float(gex_df["implied_volatility"].mean()) if not gex_df.empty else 0.50
-            
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            sim_days = st.slider("Горизонт симуляции (дней):", min_value=1, max_value=14, value=7)
-        with col_f2:
-            sim_paths = st.slider("Количество траекторий (Paths):", min_value=10, max_value=100, value=50)
-        with col_f3:
-            gex_impact_mode = st.selectbox("Влияние GEX (GEX Impact):", ["Light (Слабое)", "Normal (Нормальное)", "Strong (Сильное)"], index=1)
-            
-        impact_levels = {"Light (Слабое)": 1.0, "Normal (Нормальное)": 2.0, "Strong (Сильное)": 3.0}
-        impact_multiplier = impact_levels[gex_impact_mode]
-        
-        net_gex = gex_df["gex"].sum()
-        if net_gex >= 0:
-            vol_adj = avg_iv * max(0.15, (1.0 - 0.12 * impact_multiplier))
-            regime_desc = "🟢 Положительная Гамма (Подавление волатильности)"
-        else:
-            vol_adj = avg_iv * (1.0 + 0.18 * impact_multiplier)
-            regime_desc = "🔴 Отрицательная Гамма (Расширение волатильности)"
-            
-        st.info(f"**Режим рынка:** {regime_desc} | **Базовая IV:** {avg_iv*100:.1f}% | **Скорректированная IV:** {vol_adj*100:.1f}%")
-        
-        if st.button("🚀 ЗАПУСТИТЬ СИМУЛЯЦИЮ", use_container_width=True, type="primary"):
-            N_steps = sim_days * 24
-            dt = 1.0 / (365.0 * 24.0)
-            
-            paths_data = np.zeros((N_steps + 1, sim_paths))
-            paths_data[0, :] = spot_price
-            
-            r = 0.05
-            
-            for step in range(N_steps):
-                Z = np.random.standard_normal(sim_paths)
-                paths_data[step + 1, :] = paths_data[step, :] * np.exp(
-                    (r - 0.5 * (vol_adj ** 2)) * dt + vol_adj * np.sqrt(dt) * Z
-                )
-                
-            fig_mc = go.Figure()
-            time_axis = [datetime.now() + timedelta(hours=i) for i in range(N_steps + 1)]
-            
-            for i in range(sim_paths):
-                fig_mc.add_trace(go.Scatter(
-                    x=time_axis,
-                    y=paths_data[:, i],
-                    mode='lines',
-                    line=dict(color='rgba(52, 152, 219, 0.12)', width=1),
-                    showlegend=False,
-                    hoverinfo='skip'
-                ))
-                
-            median_path = np.percentile(paths_data, 50, axis=1)
-            upper_90 = np.percentile(paths_data, 90, axis=1)
-            lower_10 = np.percentile(paths_data, 10, axis=1)
-            
-            fig_mc.add_trace(go.Scatter(
-                x=time_axis,
-                y=median_path,
-                mode='lines',
-                line=dict(color='#f1c40f', width=2.5),
-                name='Медиана (50%)'
-            ))
-            fig_mc.add_trace(go.Scatter(
-                x=time_axis,
-                y=upper_90,
-                mode='lines',
-                line=dict(color='#10b981', width=1.5, dash='dash'),
-                name='90% перцентиль'
-            ))
-            fig_mc.add_trace(go.Scatter(
-                x=time_axis,
-                y=lower_10,
-                mode='lines',
-                line=dict(color='#ef4444', width=1.5, dash='dash'),
-                name='10% перцентиль'
-            ))
-            
-            fig_mc.update_layout(
-                title=f"Моделирование траекторий цены BTC (Монте-Карло, {sim_paths} путей)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
-                margin=dict(l=0, r=0, t=40, b=0),
-                height=450,
-                xaxis=dict(
-                    gridcolor="rgba(255,255,255,0.03)",
-                    zerolinecolor="rgba(255,255,255,0.03)"
-                ),
-                yaxis=dict(
-                    gridcolor="rgba(255,255,255,0.03)",
-                    zerolinecolor="rgba(255,255,255,0.03)",
-                    tickformat="$,.0f"
-                )
-            )
-            st.plotly_chart(fig_mc, use_container_width=True)
-            
     st.stop()
+
 
 st.sidebar.markdown("Анализ позиционирования крупных участников рынка.")
 
