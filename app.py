@@ -656,7 +656,7 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
     return fig# --- Sidebar ---
 st.sidebar.title("⚡ Терминал Кот")
 
-app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "📖 Паспорт Терминала"])
+app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "🤖 Бумажный бот & Бэктесты", "📖 Паспорт Терминала"])
 if app_mode == "📈 Интерактивный Дашборд":
     st.title("📈 Интерактивный Дашборд и Главный Репорт")
     st.markdown("Сюда стягивается вся информация, графики, и здесь же генерируется один отчетливый репорт с настроением фондов, банков и учетом новостей.")
@@ -1228,6 +1228,221 @@ elif app_mode == "🌊 BTC GEX Трекер":
           * **A1 / A2 (Magnet):** Уровни притяжения (магниты). Цена стремится застрять на них, особенно по пятницам в день экспирации опционов (пин-риск).
           * **V (Max Volatility) и S (Max Stability):** Экстремальные границы зоны. Выход за них означает переход в фазу сильного тренда (выше S) или панического обвала (ниже V).
         """)
+        
+    st.stop()
+
+
+elif app_mode == "🤖 Бумажный бот & Бэктесты":
+    st.title("🤖 ИИ-Бот Бумажной Торговли & Квантовые Бэктесты")
+    st.caption("Автоматическая симуляция торговли в реальном времени с риск-менеджментом (риск 2% на сделку) и динамической оптимизацией стратегий.")
+    
+    from src.bot_engine import BotEngine, BacktestEngine
+    
+    # 1. Initialize Bot Engine
+    bot = BotEngine(data_fetcher_fn=get_market_analysis)
+    
+    # Live BTC GEX calculations to pass as factor filter for BTC trades
+    gex_metrics_btc = None
+    try:
+        from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
+        gex_df_raw, spot_price = get_aggregate_gex_data("All Exchanges")
+        if not gex_df_raw.empty:
+            gex_metrics_btc = calculate_gex_metrics(gex_df_raw, spot_price)
+    except Exception:
+        pass
+        
+    # Trigger active trade checking and signal evaluations
+    with st.spinner("Синхронизация котировок и обновление позиций..."):
+        bot.update_positions_and_signals(gex_metrics_btc=gex_metrics_btc)
+        
+    # Get updated state
+    state = bot.state
+    balance = state["balance"]
+    equity = state["equity"]
+    active_pos = state["active_positions"]
+    journal = state["journal"]
+    win_rate = state["win_rate"]
+    
+    # 2. Portfolio Summary Cards
+    st.markdown("### 💼 Состояние портфеля")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Свободный Баланс (Cash)", f"${balance:,.2f}")
+    
+    unrealized_total = equity - balance
+    pnl_sign = "+" if unrealized_total >= 0 else ""
+    col2.metric("Текущие средства (Equity)", f"${equity:,.2f}", delta=f"{pnl_sign}${unrealized_total:,.2f}")
+    
+    col3.metric("Активные сделки", f"{len(active_pos)} шт.")
+    col4.metric("Доля прибыльных сделок (Win Rate)", f"{win_rate:.1f}%")
+    
+    st.markdown("---")
+    
+    # 3. Active Positions Section
+    st.markdown("### 📈 Активные открытые позиции")
+    if not active_pos:
+        st.info("В данный момент нет активных позиций. Бот ожидает подходящих сигналов на рынках.")
+    else:
+        # Render a clean HTML table for active trades with rationales
+        rows_html = ""
+        for sym, pos in active_pos.items():
+            dir_cls = "net-positive" if pos["direction"] == "LONG" else "net-negative"
+            pnl_val = pos["unrealized_pnl"]
+            pnl_cls = "net-positive" if pnl_val >= 0 else "net-negative"
+            pnl_str = f"${pnl_val:,.2f}"
+            
+            rows_html += f"""<tr>
+            <td style="text-align: left; padding: 12px 16px; font-weight:600; color:#ffffff;">{sym}</td>
+            <td style="text-align: center; padding: 12px 16px;"><span class="{dir_cls}" style="padding: 4px 8px; border-radius:4px;">{pos['direction']}</span></td>
+            <td class="font-mono" style="text-align: right; padding: 12px 16px;">{pos['position_size']:.4f}</td>
+            <td class="font-mono" style="text-align: right; padding: 12px 16px;">${pos['entry_price']:,.2f}</td>
+            <td class="font-mono" style="text-align: right; padding: 12px 16px;">${pos['current_price']:,.2f}</td>
+            <td class="font-mono" style="text-align: right; padding: 12px 16px; color:#ef4444;">${pos['stop_loss']:,.2f}</td>
+            <td class="font-mono" style="text-align: right; padding: 12px 16px; color:#10b981;">${pos['take_profit']:,.2f}</td>
+            <td style="text-align: right; padding: 12px 16px;"><span class="{pnl_cls}" style="padding: 4px 10px; border-radius:4px;">{pnl_str}</span></td>
+            <td style="text-align: left; padding: 12px 16px; font-size:0.85em; color:#94a3b8; max-width: 350px;">{pos['rationale']}</td>
+            </tr>"""
+            
+        active_table_html = f"""<div class="cot-table-container">
+        <table class="cot-table">
+        <thead>
+        <tr>
+        <th style="text-align: left; font-size: 0.85em; color: #6b7280;">Инструмент</th>
+        <th style="text-align: center; font-size: 0.85em; color: #6b7280;">Тип</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Объем</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Вход</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Текущая</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Stop Loss</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Take Profit</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Нереал. PnL</th>
+        <th style="text-align: left; font-size: 0.85em; color: #6b7280;">Обоснование сделки</th>
+        </tr>
+        </thead>
+        <tbody>
+        {rows_html}
+        </tbody>
+        </table>
+        </div>"""
+        st.markdown(active_table_html, unsafe_allow_html=True)
+        
+    st.markdown("---")
+    
+    # 4. Strategy Optimizer & Manual Backtester Section
+    st.markdown("### 🔬 Квантовый оптимизатор & Модуль бэктестов")
+    st.markdown("Выберите инструмент для запуска серии исторических бэктестов по всем доступным стратегиям (за последние 3 года). Выявленная самая прибыльная стратегия будет автоматически назначена боту для торговли на текущий месяц.")
+    
+    selected_backtest_asset = st.selectbox(
+        "Выберите инструмент для бэктеста:",
+        list(MARKETS.keys()),
+        index=0
+    )
+    
+    # Fetch historical COT data for backtesting
+    with st.spinner("Загрузка исторических данных для бэктеста..."):
+        backtest_part = "Leveraged Funds" if selected_backtest_asset in ["BTC", "ETH"] else "Asset Manager"
+        df_backtest_raw = get_market_analysis(selected_backtest_asset, backtest_part, use_combined=True)
+        
+    if df_backtest_raw.empty:
+        st.error("Недостаточно данных для запуска бэктеста по выбранному активу.")
+    else:
+        # Define strategies to backtest
+        if selected_backtest_asset == "BTC":
+            strategies = [
+                "Strategy A (COT Trend)",
+                "Strategy B (GEX Walls)",
+                "Strategy C (Gamma Flip Breakout)",
+                "Strategy D (Synergy COT+GEX)"
+            ]
+        else:
+            strategies = [
+                "Strategy A (COT Trend)",
+                "Strategy B (COT Contrarian)",
+                "Strategy C (COT Crossover)",
+                "Strategy D (COT Momentum)"
+            ]
+            
+        results = []
+        best_return = -999.0
+        best_strat = None
+        
+        for strat in strategies:
+            summary, trades = BacktestEngine.run_backtest(df_backtest_raw, selected_backtest_asset, strat)
+            results.append({
+                "Стратегия": strat,
+                "Общая доходность": f"{summary['net_return']:+.2f}%",
+                "Win Rate": f"{summary['win_rate']:.1f}%",
+                "Profit Factor": f"{summary['profit_factor']:.2f}",
+                "Макс. просадка": f"{summary['max_drawdown']:.1f}%",
+                "Кол-во сделок": summary["trade_count"],
+                "raw_return": summary["net_return"]
+            })
+            if summary["net_return"] > best_return:
+                best_return = summary["net_return"]
+                best_strat = strat
+                
+        results_df = pd.DataFrame(results)
+        
+        # Display results comparison table
+        st.markdown(f"**Результаты сравнительного анализа стратегий для {selected_backtest_asset}:**")
+        st.dataframe(results_df.drop(columns=["raw_return"]), use_container_width=True, hide_index=True)
+        
+        # Highlight best strategy
+        st.success(f"🏆 **Рекомендация месяца:** Самая прибыльная стратегия для **{selected_backtest_asset}** — **'{best_strat}'** (Доходность: {best_return:+.2f}%).")
+        
+        # Interactive activator button
+        current_active_strat = state["selected_strategies"].get(selected_backtest_asset, "Strategy A (COT Trend)")
+        st.info(f"Текущая активная ТС для {selected_backtest_asset} в боте: **'{current_active_strat}'**.")
+        
+        if current_active_strat != best_strat:
+            if st.button(f"🎯 АКТИВИРОВАТЬ СТРАТЕГИЮ '{best_strat}' ДЛЯ {selected_backtest_asset}", use_container_width=True, type="primary"):
+                bot.state["selected_strategies"][selected_backtest_asset] = best_strat
+                bot.save_state()
+                st.success(f"Стратегия '{best_strat}' успешно активирована для реальных сделок по {selected_backtest_asset}!")
+                st.rerun()
+                
+    st.markdown("---")
+    
+    # 5. Visual Trading Journal History
+    st.markdown("### 📋 Журнал завершенных сделок (Торговая история)")
+    if not journal:
+        st.info("Журнал пуст. Закрытые сделки появятся здесь после срабатывания SL/TP.")
+    else:
+        # Build HTML table for closed trades
+        journal_rows = ""
+        for trade in reversed(journal):
+            pnl = trade["profit_usd"]
+            pnl_cls = "net-positive" if pnl >= 0 else "net-negative"
+            pnl_sign = "+" if pnl > 0 else ""
+            pnl_str = f"{pnl_sign}${pnl:,.2f}"
+            
+            journal_rows += f"""<tr>
+            <td style="text-align: left; padding: 8px 12px; font-weight:600; color:#ffffff;">{trade['symbol']}</td>
+            <td style="text-align: center; padding: 8px 12px;">{trade['direction']}</td>
+            <td style="text-align: right; padding: 8px 12px;">${trade['entry_price']:,.2f}</td>
+            <td style="text-align: right; padding: 8px 12px;">${trade['exit_price']:,.2f}</td>
+            <td style="text-align: right; padding: 8px 12px;"><span class="{pnl_cls}" style="padding: 2px 6px; border-radius:3px;">{pnl_str}</span></td>
+            <td style="text-align: center; padding: 8px 12px; font-size:0.9em; color:#cbd5e1;">{trade['entry_time']} / {trade['exit_time']}</td>
+            <td style="text-align: left; padding: 8px 12px; font-size:0.85em; color:#94a3b8; max-width: 300px;">{trade['rationale']}</td>
+            </tr>"""
+            
+        journal_table_html = f"""<div class="cot-table-container">
+        <table class="cot-table">
+        <thead>
+        <tr>
+        <th style="text-align: left; font-size: 0.85em; color: #6b7280;">Инструмент</th>
+        <th style="text-align: center; font-size: 0.85em; color: #6b7280;">Тип</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Вход</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">Выход</th>
+        <th style="text-align: right; font-size: 0.85em; color: #6b7280;">PnL USD</th>
+        <th style="text-align: center; font-size: 0.85em; color: #6b7280;">Время Откр./Закр.</th>
+        <th style="text-align: left; font-size: 0.85em; color: #6b7280;">Причина открытия / закрытия</th>
+        </tr>
+        </thead>
+        <tbody>
+        {journal_rows}
+        </tbody>
+        </table>
+        </div>"""
+        st.markdown(journal_table_html, unsafe_allow_html=True)
         
     st.stop()
 
