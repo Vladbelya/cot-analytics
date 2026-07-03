@@ -876,26 +876,16 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     selected_window = st.sidebar.selectbox(
         "Окно графиков GEX:",
-        [
-            "1 час (минутки)",
-            "4 часа (минутки)",
-            "12 часов (минутки)",
-            "24 часа",
-            "3 дня (72 часа)",
-            "7 дней (168 часов)"
-        ],
-        index=2
+        ["24 часа", "3 дня (72 часа)", "7 дней (168 часов)"],
+        index=1
     )
     
-    window_config_map = {
-        "1 час (минутки)": (60, "1m"),
-        "4 часа (минутки)": (240, "1m"),
-        "12 часов (минутки)": (720, "1m"),
-        "24 часа": (24, "1h"),
-        "3 дня (72 часа)": (72, "1h"),
-        "7 дней (168 часов)": (168, "1h")
+    window_hours_map = {
+        "24 часа": 24,
+        "3 дня (72 часа)": 72,
+        "7 дней (168 часов)": 168
     }
-    hours_to_load, selected_interval = window_config_map[selected_window]
+    hours_to_load = window_hours_map[selected_window]
     
     st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
     
@@ -996,7 +986,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
     st.caption(f"Слева: Свечной график цены BTC за последние {selected_window} с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
     
     with st.spinner("Загрузка истории котировок BTC..."):
-        df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval=selected_interval)
+        df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval="1h")
         
     fig_gex = make_subplots(
         rows=1, cols=2, 
@@ -1174,102 +1164,6 @@ elif app_mode == "🌊 BTC GEX Трекер":
     )
     st.plotly_chart(fig_gex, use_container_width=True)
     
-    # ------------------ GEX History Heatmap Section ------------------
-    st.markdown("---")
-    st.markdown("### 📈 Тепловая карта гамма-экспозиции (GEX History Heatmap)")
-    st.caption(f"Историческое распределение концентрации GEX дилеров по страйкам за последние {selected_window}. Белая линия — спотовая цена BTC, розовая линия — динамический уровень Gamma Flip.")
-    
-    with st.spinner("Генерация исторической тепловой карты GEX..."):
-        from src.gex_engine import calculate_historical_gex_heatmap
-        h_strikes, h_times, h_z, h_spots, h_flips = calculate_historical_gex_heatmap(gex_df, df_hist)
-        
-    if h_times:
-        fig_heat = go.Figure()
-        
-        # Calculate dynamic range for heatmap color scaling (95th percentile to prevent outliers from washing out colors)
-        peak_z = float(np.percentile(np.abs(h_z), 95) / 1e6)
-        peak_z = max(5.0, min(peak_z, 30.0))
-        
-        fig_heat.add_trace(go.Heatmap(
-            x=h_times,
-            y=h_strikes,
-            z=h_z / 1e6, # Millions
-            colorscale="RdYlGn",
-            zmid=0,
-            zmin=-peak_z,
-            zmax=peak_z,
-            zsmooth="best",
-            colorbar=dict(title="Net GEX ($M)", tickformat="+,.0f"),
-            hovertemplate="<b>Время:</b> %{x}<br><b>Страйк:</b> $%{y:,.0f}<br><b>Net GEX:</b> %{z:+.2f}M<extra></extra>"
-        ))
-        
-        # Spot Price Overlay (Black outline)
-        fig_heat.add_trace(go.Scatter(
-            x=h_times,
-            y=h_spots,
-            mode="lines",
-            line=dict(color="#000000", width=4.5),
-            showlegend=False,
-            hoverinfo="skip"
-        ))
-        
-        # Spot Price Overlay (White line)
-        fig_heat.add_trace(go.Scatter(
-            x=h_times,
-            y=h_spots,
-            mode="lines",
-            line=dict(color="#ffffff", width=2.2),
-            name="Цена Spot BTC",
-            hovertemplate="<b>Цена BTC:</b> $%{y:,.2f}<extra></extra>"
-        ))
-        
-        # Gamma Flip Overlay (Black outline)
-        fig_heat.add_trace(go.Scatter(
-            x=h_times,
-            y=h_flips,
-            mode="lines",
-            line=dict(color="#000000", width=3.5),
-            showlegend=False,
-            hoverinfo="skip"
-        ))
-        
-        # Gamma Flip Overlay (Magenta line)
-        fig_heat.add_trace(go.Scatter(
-            x=h_times,
-            y=h_flips,
-            mode="lines",
-            line=dict(color="#ec4899", width=1.8),
-            name="Gamma Flip",
-            hovertemplate="<b>Gamma Flip:</b> $%{y:,.2f}<extra></extra>"
-        ))
-        
-        fig_heat.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=500,
-            xaxis=dict(
-                gridcolor="rgba(255,255,255,0.03)",
-                zerolinecolor="rgba(255,255,255,0.03)"
-            ),
-            yaxis=dict(
-                gridcolor="rgba(255,255,255,0.03)",
-                zerolinecolor="rgba(255,255,255,0.03)",
-                tickformat="$,.0f"
-            ),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            )
-        )
-        st.plotly_chart(fig_heat, use_container_width=True)
-    else:
-        st.info("Исторические данные отсутствуют.")
-        
     # Top-20 Table
     st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
     top_gex_df = gex_df.copy()

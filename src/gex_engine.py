@@ -488,8 +488,8 @@ def calculate_historical_gex_heatmap(gex_df, df_hist):
     if gex_df.empty or df_hist.empty:
         return [], [], np.zeros((0,0)), [], []
         
-    # We will use 60 time steps to make the heatmap time-resolution high
-    step = max(1, len(df_hist) // 60)
+    # We will use 150 time steps to make the heatmap time-resolution extremely high
+    step = max(1, len(df_hist) // 150)
     df_sampled = df_hist.iloc[::step].copy()
     
     times = df_sampled["datetime"].tolist()
