@@ -417,13 +417,13 @@ def calculate_gex_metrics(df, spot_price):
         "simulated_gex": net_gex_profile
     }
 
-def fetch_btc_price_history_binance():
+def fetch_btc_price_history_binance(limit=168):
     """
-    Fetches 7 days of 1-hour interval price history for BTCUSDT from Binance.
+    Fetches price history for BTCUSDT from Binance with a dynamic limit of hours.
     Falls back to yfinance if Binance is unavailable.
     """
     try:
-        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=168"
+        url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit={limit}"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         data = r.json()
@@ -449,7 +449,16 @@ def fetch_btc_price_history_binance():
     try:
         import yfinance as yf
         tk = yf.Ticker("BTC-USD")
-        df_yf = tk.history(period="7d", interval="1h").reset_index()
+        
+        # Map hour limit to yfinance period
+        if limit <= 24:
+            period = "1d"
+        elif limit <= 72:
+            period = "3d"
+        else:
+            period = "7d"
+            
+        df_yf = tk.history(period=period, interval="1h").reset_index()
         if not df_yf.empty:
             df_yf = df_yf.rename(columns={
                 "Datetime": "datetime", 

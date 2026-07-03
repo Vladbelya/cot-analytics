@@ -874,6 +874,19 @@ elif app_mode == "🌊 BTC GEX Трекер":
     )
     selected_exchange = selected_exchange_map[selected_display]
     
+    selected_window = st.sidebar.selectbox(
+        "Окно графиков GEX:",
+        ["24 часа", "3 дня (72 часа)", "7 дней (168 часов)"],
+        index=1
+    )
+    
+    window_hours_map = {
+        "24 часа": 24,
+        "3 дня (72 часа)": 72,
+        "7 дней (168 часов)": 168
+    }
+    hours_to_load = window_hours_map[selected_window]
+    
     st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
     
     # Fetch all live options data first to get the list of expirations
@@ -949,24 +962,18 @@ elif app_mode == "🌊 BTC GEX Трекер":
         if strike is None:
             return ""
         gex_str = f" ({gex_m:+.1f}M)" if gex_m is not None else ""
-        return f"""
-        <div style="background: #1e293b; border-left: 4px solid {color}; padding: 8px 12px; border-radius: 4px; min-width: 135px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <div style="font-size: 0.75em; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">{name} {subtitle}</div>
-            <div style="font-size: 1.15em; font-weight: 700; color: #ffffff; margin: 2px 0;">${strike:,.0f}</div>
-            <div style="font-size: 0.75em; color: {color}; font-weight: 600;">{gex_str}</div>
-        </div>
-        """
+        return f"""<div style="background: #1e293b; border-left: 4px solid {color}; padding: 8px 12px; border-radius: 4px; min-width: 135px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div style="font-size: 0.75em; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">{name} {subtitle}</div><div style="font-size: 1.15em; font-weight: 700; color: #ffffff; margin: 2px 0;">${strike:,.0f}</div><div style="font-size: 0.75em; color: {color}; font-weight: 600;">{gex_str}</div></div>"""
         
     badges_html = []
-    badges_html.append(format_badge_html("V", v_level, color="#f97316", subtitle="Volatility Limit"))
-    badges_html.append(format_badge_html("N2", n2, get_strike_gex_m(n2), color="#ef4444", subtitle="Vol. Trigger 2"))
-    badges_html.append(format_badge_html("N1", n1, get_strike_gex_m(n1), color="#ef4444", subtitle="Vol. Trigger 1"))
-    badges_html.append(format_badge_html("A1", a1, get_strike_gex_m(a1), color="#8b5cf6", subtitle="Magnet 1"))
-    badges_html.append(format_badge_html("Г", flip_price, 0.0, color="#ec4899", subtitle="Gamma Flip"))
-    badges_html.append(format_badge_html("A2", a2, get_strike_gex_m(a2), color="#8b5cf6", subtitle="Magnet 2"))
-    badges_html.append(format_badge_html("P1", p1, get_strike_gex_m(p1), color="#10b981", subtitle="Gamma Resist 1"))
-    badges_html.append(format_badge_html("P2", p2, get_strike_gex_m(p2), color="#10b981", subtitle="Gamma Resist 2"))
-    badges_html.append(format_badge_html("S", s_level, color="#10b981", subtitle="Stability Limit"))
+    badges_html.append(format_badge_html("V", v_level, color="#f97316", subtitle="Лимит Волат."))
+    badges_html.append(format_badge_html("N2", n2, get_strike_gex_m(n2), color="#ef4444", subtitle="Триггер Волат. 2"))
+    badges_html.append(format_badge_html("N1", n1, get_strike_gex_m(n1), color="#ef4444", subtitle="Триггер Волат. 1"))
+    badges_html.append(format_badge_html("A1", a1, get_strike_gex_m(a1), color="#8b5cf6", subtitle="Магнит Цены 1"))
+    badges_html.append(format_badge_html("Flip Г", flip_price, 0.0, color="#ec4899", subtitle="Нейтраль"))
+    badges_html.append(format_badge_html("A2", a2, get_strike_gex_m(a2), color="#8b5cf6", subtitle="Магнит Цены 2"))
+    badges_html.append(format_badge_html("P1", p1, get_strike_gex_m(p1), color="#10b981", subtitle="Сопротивление 1"))
+    badges_html.append(format_badge_html("P2", p2, get_strike_gex_m(p2), color="#10b981", subtitle="Сопротивление 2"))
+    badges_html.append(format_badge_html("S", s_level, color="#10b981", subtitle="Лимит Стабильн."))
     
     full_badges_html = f"""<div style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 25px;">
 {"".join(badges_html)}
@@ -976,17 +983,17 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     # GEX Profile & Price History Subplot Chart
     st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
-    st.caption("Слева: Свечной график цены BTC за последние 7 дней с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
+    st.caption(f"Слева: Свечной график цены BTC за последние {selected_window} с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
     
     with st.spinner("Загрузка истории котировок BTC..."):
-        df_hist = fetch_btc_price_history_binance()
+        df_hist = fetch_btc_price_history_binance(limit=hours_to_load)
         
     fig_gex = make_subplots(
         rows=1, cols=2, 
         shared_yaxes=True, 
         column_widths=[0.85, 0.15],
         horizontal_spacing=0.01,
-        subplot_titles=("Цена BTC (7 дней)", "GEX Профиль")
+        subplot_titles=(f"Цена BTC ({selected_window})", "GEX Профиль")
     )
     
     # 1. Price History Candlestick Chart (Col 1)
@@ -1160,7 +1167,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
     # ------------------ GEX History Heatmap Section ------------------
     st.markdown("---")
     st.markdown("### 📈 Тепловая карта гамма-экспозиции (GEX History Heatmap)")
-    st.caption("Историческое распределение концентрации GEX дилеров по страйкам за последние 7 дней. Белая линия — спотовая цена BTC, розовая пунктирная линия — динамический уровень Gamma Flip.")
+    st.caption(f"Историческое распределение концентрации GEX дилеров по страйкам за последние {selected_window}. Белая линия — спотовая цена BTC, розовая линия — динамический уровень Gamma Flip.")
     
     with st.spinner("Генерация исторической тепловой карты GEX..."):
         from src.gex_engine import calculate_historical_gex_heatmap
