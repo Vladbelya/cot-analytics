@@ -1169,30 +1169,59 @@ elif app_mode == "🌊 BTC GEX Трекер":
     if h_times:
         fig_heat = go.Figure()
         
+        # Calculate dynamic range for heatmap color scaling (95th percentile to prevent outliers from washing out colors)
+        peak_z = float(np.percentile(np.abs(h_z), 95) / 1e6)
+        peak_z = max(5.0, min(peak_z, 30.0))
+        
         fig_heat.add_trace(go.Heatmap(
             x=h_times,
             y=h_strikes,
             z=h_z / 1e6, # Millions
             colorscale="RdYlGn",
             zmid=0,
-            colorbar=dict(title="Net GEX ($M)", tickformat="+,.1f"),
+            zmin=-peak_z,
+            zmax=peak_z,
+            zsmooth="best",
+            colorbar=dict(title="Net GEX ($M)", tickformat="+,.0f"),
             hovertemplate="<b>Время:</b> %{x}<br><b>Страйк:</b> $%{y:,.0f}<br><b>Net GEX:</b> %{z:+.2f}M<extra></extra>"
         ))
         
+        # Spot Price Overlay (Black outline)
         fig_heat.add_trace(go.Scatter(
             x=h_times,
             y=h_spots,
             mode="lines",
-            line=dict(color="#ffffff", width=2.5),
+            line=dict(color="#000000", width=4.5),
+            showlegend=False,
+            hoverinfo="skip"
+        ))
+        
+        # Spot Price Overlay (White line)
+        fig_heat.add_trace(go.Scatter(
+            x=h_times,
+            y=h_spots,
+            mode="lines",
+            line=dict(color="#ffffff", width=2.2),
             name="Цена Spot BTC",
             hovertemplate="<b>Цена BTC:</b> $%{y:,.2f}<extra></extra>"
         ))
         
+        # Gamma Flip Overlay (Black outline)
         fig_heat.add_trace(go.Scatter(
             x=h_times,
             y=h_flips,
             mode="lines",
-            line=dict(color="#ec4899", width=2, dash="dash"),
+            line=dict(color="#000000", width=3.5),
+            showlegend=False,
+            hoverinfo="skip"
+        ))
+        
+        # Gamma Flip Overlay (Magenta line)
+        fig_heat.add_trace(go.Scatter(
+            x=h_times,
+            y=h_flips,
+            mode="lines",
+            line=dict(color="#ec4899", width=1.8),
             name="Gamma Flip",
             hovertemplate="<b>Gamma Flip:</b> $%{y:,.2f}<extra></extra>"
         ))

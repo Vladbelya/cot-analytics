@@ -478,14 +478,16 @@ def calculate_historical_gex_heatmap(gex_df, df_hist):
     step = max(1, len(df_hist) // 40)
     df_sampled = df_hist.iloc[::step].copy()
     
-    # Define strike range: +/- 8% of current spot price in steps of 500
-    current_spot = float(df_hist["close"].iloc[-1])
-    min_strike = int((current_spot * 0.92) // 500) * 500
-    max_strike = int((current_spot * 1.08) // 500) * 500
-    strikes_range = list(range(min_strike, max_strike + 500, 500))
-    
     times = df_sampled["datetime"].tolist()
     spots = df_sampled["close"].tolist()
+    
+    min_spot = min(spots)
+    max_spot = max(spots)
+    
+    # 4% margin below min and above max for dynamic centering
+    min_strike = int((min_spot * 0.96) // 100) * 100
+    max_strike = int((max_spot * 1.04) // 100) * 100
+    strikes_range = list(range(min_strike, max_strike + 100, 100))
     
     opt_strikes = gex_df["strike"].values
     opt_expiries = gex_df["expiry_dt"].values
