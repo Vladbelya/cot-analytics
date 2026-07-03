@@ -909,6 +909,10 @@ elif app_mode == "🌊 BTC GEX Трекер":
         index=0
     )
     
+    st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+    if st.sidebar.button("🔄 Обновить данные GEX", use_container_width=True):
+        st.rerun()
+    
     # Filter raw dataframe by selected expiry
     if selected_expiry != "Все экспирации (TOTAL)":
         gex_df = gex_df_raw[gex_df_raw["expiry_str"] == selected_expiry].copy()
