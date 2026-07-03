@@ -433,7 +433,11 @@ def fetch_btc_price_history_binance():
             dt = datetime.datetime.fromtimestamp(item[0]/1000.0, tz=datetime.timezone.utc)
             records.append({
                 "datetime": dt,
-                "close": float(item[4])
+                "open": float(item[1]),
+                "high": float(item[2]),
+                "low": float(item[3]),
+                "close": float(item[4]),
+                "volume": float(item[5])
             })
         df_hist = pd.DataFrame(records)
         if not df_hist.empty:
@@ -447,7 +451,14 @@ def fetch_btc_price_history_binance():
         tk = yf.Ticker("BTC-USD")
         df_yf = tk.history(period="7d", interval="1h").reset_index()
         if not df_yf.empty:
-            df_yf = df_yf.rename(columns={"Datetime": "datetime", "Close": "close"})
+            df_yf = df_yf.rename(columns={
+                "Datetime": "datetime", 
+                "Open": "open", 
+                "High": "high", 
+                "Low": "low", 
+                "Close": "close",
+                "Volume": "volume"
+            })
             return df_yf
     except Exception:
         pass

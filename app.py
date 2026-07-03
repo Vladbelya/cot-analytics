@@ -1020,15 +1020,19 @@ elif app_mode == "🌊 BTC GEX Трекер":
         subplot_titles=("Цена BTC (7 дней)", "GEX Профиль")
     )
     
-    # 1. Price History Line (Col 1)
+    # 1. Price History Candlestick Chart (Col 1)
     if not df_hist.empty:
         fig_gex.add_trace(
-            go.Scatter(
+            go.Candlestick(
                 x=df_hist["datetime"],
-                y=df_hist["close"],
-                line=dict(color="#3498db", width=2.5),
+                open=df_hist["open"],
+                high=df_hist["high"],
+                low=df_hist["low"],
+                close=df_hist["close"],
                 name="Цена BTC",
-                hovertemplate="<b>Время:</b> %{x}<br><b>Цена:</b> $%{y:,.2f}<extra></extra>"
+                increasing_line_color="#10b981",
+                decreasing_line_color="#ef4444",
+                hoverinfo="all"
             ),
             row=1, col=1
         )
@@ -1173,6 +1177,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
         margin=dict(l=0, r=60, t=30, b=0), # Extra right margin for labels
         height=600,
         showlegend=False,
+        xaxis_rangeslider_visible=False,
         yaxis=dict(
             title="Цена BTC / Страйк ($)",
             gridcolor="rgba(255,255,255,0.05)",
