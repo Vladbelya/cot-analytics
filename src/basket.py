@@ -172,10 +172,43 @@ def build_global_data_basket(assets_list, extra_context=""):
     # 4. Options Data
     basket += get_options_basket_data(assets_list)
     
-    # 5. Prices & News
+    # 5. Options GEX data for Bitcoin (BTC)
+    basket += "=== РАСПРЕДЕЛЕНИЕ ГАММЫ (GEX) ДЛЯ BITCOIN (BTC) ===\n"
+    try:
+        from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
+        gex_df, spot_price = get_aggregate_gex_data("All Exchanges")
+        metrics = calculate_gex_metrics(gex_df, spot_price)
+        
+        g_flip = metrics.get('gamma_flip')
+        c_wall = metrics.get('call_wall')
+        p_wall = metrics.get('put_wall')
+        v_lev = metrics.get('v')
+        s_lev = metrics.get('s')
+        p1_val = metrics.get('p1')
+        p2_val = metrics.get('p2')
+        n1_val = metrics.get('n1')
+        n2_val = metrics.get('n2')
+        a1_val = metrics.get('a1')
+        a2_val = metrics.get('a2')
+        
+        basket += f"  BTC Spot Price: {spot_price:,.2f}\n"
+        basket += f"  Net GEX: {metrics['total_gex']/1_000_000.0:+.2f}M USD\n"
+        basket += f"  Gamma Flip: {f'{g_flip:,.2f} USD' if g_flip else 'N/A'}\n"
+        basket += f"  Call Wall: {f'{c_wall:,.2f} USD' if c_wall else 'N/A'}\n"
+        basket += f"  Put Wall: {f'{p_wall:,.2f} USD' if p_wall else 'N/A'}\n"
+        basket += f"  Gamma Resistance (P1, P2): {f'{p1_val:,.2f}' if p1_val else 'N/A'}, {f'{p2_val:,.2f}' if p2_val else 'N/A'} USD\n"
+        basket += f"  Volatility Triggers (N1, N2): {f'{n1_val:,.2f}' if n1_val else 'N/A'}, {f'{n2_val:,.2f}' if n2_val else 'N/A'} USD\n"
+        basket += f"  Magnets (A1, A2): {f'{a1_val:,.2f}' if a1_val else 'N/A'}, {f'{a2_val:,.2f}' if a2_val else 'N/A'} USD\n"
+        basket += f"  Max Volatility (V): {f'{v_lev:,.2f} USD' if v_lev else 'N/A'}\n"
+        basket += f"  Max Stability (S): {f'{s_lev:,.2f} USD' if s_lev else 'N/A'}\n"
+    except Exception as e:
+        basket += f"  Ошибка расчета GEX для BTC: {e}\n"
+    basket += "\n"
+    
+    # 6. Prices & News
     basket += get_price_and_news_data(assets_list)
     
-    # 6. External Context (User URLs, PDFs)
+    # 7. External Context (User URLs, PDFs)
     if extra_context:
         basket += "=== ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ ОТ ПОЛЬЗОВАТЕЛЯ (URL/PDF) ===\n"
         basket += extra_context + "\n"

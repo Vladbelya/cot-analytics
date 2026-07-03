@@ -4,24 +4,27 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import importlib
 import src.config
 import src.pipeline
 import src.analytics
 import src.backtester
+import src.gex_engine
 
 # Force reload custom modules to fix Streamlit Cloud memory caching bugs
 importlib.reload(src.config)
 importlib.reload(src.pipeline)
 importlib.reload(src.analytics)
 importlib.reload(src.backtester)
+importlib.reload(src.gex_engine)
 
 from src.config import MARKETS, DATA_DIR_COT, DATA_DIR_PRICES, PARTICIPANTS_MAP
 from src.pipeline import update_all_data, get_data_freshness
 from src.analytics import get_market_analysis
 from src.backtester import run_full_interpretation, SIGNAL_DEFS, FORWARD_HORIZONS
+from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics, parse_expiry_date_robust, fetch_btc_price_history_binance
 
 # Page configuration
 st.set_page_config(
@@ -653,171 +656,8 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
     return fig# --- Sidebar ---
 st.sidebar.title("⚡ Терминал Кот")
 
-app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🎓 Обучение кота", "📅 Календарь событий", "📖 Паспорт Терминала"])
-
-if app_mode == "🎓 Обучение кота":
-    from src.agent import (
-        extract_text_from_pdf, 
-        fetch_url_text, 
-        absorb_knowledge, 
-        load_knowledge_base,
-        analyze_single_source,
-        load_tracked_sources,
-        save_tracked_sources
-    )
-    
-    st.title("🎓 Обучение ИИ-Агента Кота")
-    st.markdown("Здесь вы можете добавлять официальные источники, новостные каналы и отчеты, которые агент будет регулярно читать для составления макро-отчетов.")
-    
-    st.subheader("1. Обучение агента (Разовая загрузка знаний)")
-    
-    tab1, tab2, tab3 = st.tabs(["📄 PDF Отчет", "🔗 Ссылка (URL)", "📝 Текст"])
-    
-    with tab1:
-        uploaded_file = st.file_uploader("Загрузить PDF (Bank Report, Notion и т.д.)", type="pdf")
-        if st.button("Изучить PDF", use_container_width=True):
-            if uploaded_file is not None:
-                with st.spinner("Чтение PDF и интеграция в базу знаний..."):
-                    try:
-                        text = extract_text_from_pdf(uploaded_file)
-                        absorb_knowledge(text, source_name=uploaded_file.name)
-                        st.success("✅ Знания успешно усвоены!")
-                        with st.spinner("Формируем мгновенное заключение по этому источнику..."):
-                            conclusion = analyze_single_source(text, source_name=uploaded_file.name)
-                            st.markdown("#### Вывод по этому источнику:")
-                            st.info(conclusion)
-                    except Exception as e:
-                        st.error(f"Ошибка: {e}")
-            else:
-                st.warning("Сначала выберите файл.")
-                
-    with tab2:
-        url_input = st.text_input("Введите ссылку на статью или новость:")
-        if st.button("Изучить ссылку", use_container_width=True):
-            if url_input:
-                with st.spinner("Скрапинг сайта и интеграция в базу знаний..."):
-                    try:
-                        text = fetch_url_text(url_input)
-                        absorb_knowledge(text, source_name=url_input)
-                        st.success("✅ Статья прочитана и добавлена в память!")
-                        with st.spinner("Формируем мгновенное заключение по этому источнику..."):
-                            conclusion = analyze_single_source(text, source_name=url_input)
-                            st.markdown("#### Вывод по этому источнику:")
-                            st.info(conclusion)
-                    except Exception as e:
-                        st.error(f"Ошибка: {e}")
-            else:
-                st.warning("Введите ссылку.")
-                
-    with tab3:
-        raw_text = st.text_area("Вставьте любой текст для анализа:", height=150)
-        if st.button("Изучить текст", use_container_width=True):
-            if raw_text.strip():
-                with st.spinner("Анализ текста..."):
-                    try:
-                        absorb_knowledge(raw_text, source_name="Ручной ввод пользователя")
-                        st.success("✅ Текст усвоен!")
-                        with st.spinner("Формируем мгновенное заключение по этому источнику..."):
-                            conclusion = analyze_single_source(raw_text, source_name="Ручной ввод пользователя")
-                            st.markdown("#### Вывод по этому источнику:")
-                            st.info(conclusion)
-                    except Exception as e:
-                        st.error(f"Ошибка: {e}")
-            else:
-                st.warning("Текст пуст.")
-                
-    st.markdown("---")
-    st.subheader("2. Постоянные источники (Официальные каналы и отчеты)")
-    st.markdown("Агент будет **автоматически парсить эти источники каждый раз** при генерации дашборда и репортов:")
-    
-    tracked_sources = load_tracked_sources()
-    
-    with st.form("add_source_form", clear_on_submit=True):
-        col_src1, col_src2 = st.columns([4, 1])
-        new_source = col_src1.text_input("Добавить новый источник для отслеживания (URL):", placeholder="https://...")
-        add_btn = col_src2.form_submit_button("Добавить")
-        if add_btn and new_source.strip():
-            if new_source.strip() not in tracked_sources:
-                tracked_sources.append(new_source.strip())
-                save_tracked_sources(tracked_sources)
-                st.rerun()
-                
-    with st.expander("Показать/скрыть текущие источники", expanded=False):
-        if tracked_sources:
-            for idx, src in enumerate(tracked_sources):
-                col1, col2 = st.columns([5, 1])
-                col1.code(src)
-                if col2.button("Удалить", key=f"del_src_{idx}"):
-                    tracked_sources.remove(src)
-                    save_tracked_sources(tracked_sources)
-                    st.rerun()
-        else:
-            st.info("Нет отслеживаемых источников. Агент будет опираться только на свою базу и новости.")
-            
-    st.markdown("---")
-    st.subheader("3. База Знаний Агента")
-    with st.expander("Посмотреть текущую память агента (отредактируйте файл data/knowledge_base.md напрямую при необходимости)", expanded=True):
-        kb_content = load_knowledge_base()
-        st.markdown(kb_content)
-        
-    st.stop()
-
-elif app_mode == "📅 Календарь событий":
-    st.title("📅 Календарь макроэкономических событий")
-    st.markdown("Здесь публикуются результаты ключевых событий, их вероятные исходы и макроэкономические последствия.")
-    
-    from src.calendar import fetch_economic_calendar, analyze_calendar_events, get_event_description
-    
-    # Filter UI
-    st.sidebar.markdown("### Настройки календаря")
-    impact_filter = st.sidebar.multiselect(
-        "Важность событий:",
-        ["🔴 Высокая", "🟠 Средняя", "🟡 Низкая", "⚪ Нет (Holiday)"],
-        default=["🔴 Высокая", "🟠 Средняя"]
-    )
-    
-    with st.spinner("Загрузка данных экономического календаря..."):
-        all_events = fetch_economic_calendar()
-        
-    if isinstance(all_events, dict) and "error" in all_events:
-        st.error(f"Не удалось загрузить календарь: {all_events['error']}")
-    elif not all_events:
-        st.info("На этой неделе нет макроэкономических событий.")
-    else:
-        events = [ev for ev in all_events if ev["impact"] in impact_filter]
-        
-        if not events:
-            st.warning("Нет событий, подходящих под выбранные фильтры.")
-        else:
-            st.success(f"Отображено {len(events)} событий.")
-            
-            # Action button to trigger AI analysis
-            if st.button("🤖 Сгенерировать ИИ-Анализ Недели (для отфильтрованных событий)", type="primary"):
-                with st.spinner("ИИ анализирует предстоящие события..."):
-                    analysis = analyze_calendar_events(events)
-                    st.markdown("---")
-                    st.markdown("## 🧠 ИИ-Анализ предстоящих событий")
-                    st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
-                    st.markdown(analysis)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    st.markdown("---")
-            
-            for ev in events:
-                st.markdown(f"### {ev['date']} {ev['time']} — {ev['currency']} | {ev['event']}")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Важность", ev['impact'])
-                col2.metric("Прогноз", ev['forecast'] if ev['forecast'] else "—")
-                col3.metric("Предыдущее", ev['previous'] if ev['previous'] else "—")
-                
-                with st.expander("📖 Описание события"):
-                    desc = get_event_description(ev['event'])
-                    st.info(desc)
-                    
-                st.markdown("<hr class='interp-hr'>", unsafe_allow_html=True)
-            
-    st.stop()
-
-elif app_mode == "📈 Интерактивный Дашборд":
+app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "📖 Паспорт Терминала"])
+if app_mode == "📈 Интерактивный Дашборд":
     st.title("📈 Интерактивный Дашборд и Главный Репорт")
     st.markdown("Сюда стягивается вся информация, графики, и здесь же генерируется один отчетливый репорт с настроением фондов, банков и учетом новостей.")
     
@@ -918,6 +758,31 @@ elif app_mode == "📈 Интерактивный Дашборд":
                             pass
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('COT', 'Нет комментария')}</div>", unsafe_allow_html=True)
                 
+                # 4.5. BTC GEX Уровни (for Bitcoin analysis)
+                if any(x in user_assets_input.upper() for x in ["BTC", "BITCOIN"]):
+                    st.markdown("### 🌊 Уровни дилеров опционов BTC (GEX)")
+                    try:
+                        from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
+                        gex_df, spot_price = get_aggregate_gex_data("All Exchanges")
+                        gex_metrics = calculate_gex_metrics(gex_df, spot_price)
+                        
+                        g_flip = gex_metrics.get("gamma_flip")
+                        c_wall = gex_metrics.get("call_wall")
+                        p_wall = gex_metrics.get("put_wall")
+                        total_gex = gex_metrics.get("total_gex", 0)
+                        
+                        col_g1, col_g2, col_g3, col_g4 = st.columns(4)
+                        with col_g1:
+                            st.metric("Цена BTC (Spot)", f"${spot_price:,.2f}")
+                        with col_g2:
+                            st.metric("Net GEX (BTC)", f"${total_gex/1_000_000.0:+.2f}M", delta="🟢 Positive" if total_gex >= 0 else "🔴 Negative")
+                        with col_g3:
+                            st.metric("Точка Gamma Flip", f"${g_flip:,.0f}" if g_flip else "Н/Д")
+                        with col_g4:
+                            st.metric("Стены Call / Put", f"${c_wall:,.0f} / ${p_wall:,.0f}" if (c_wall and p_wall) else "Н/Д")
+                    except Exception as e:
+                        st.warning(f"Данные GEX для BTC временно недоступны: {e}")
+                
                 # 5. OPTIONS & ETFS
                 col1, col2 = st.columns(2)
                 with col1:
@@ -941,64 +806,530 @@ elif app_mode == "📈 Интерактивный Дашборд":
     st.stop()
 
 elif app_mode == "📖 Паспорт Терминала":
-    st.title("📖 Паспорт Терминала: Методология и Данные")
-    st.markdown("### Общие сведения")
-    st.markdown("Терминал представляет собой агрегатор макроэкономических, сентиментных и позиционных данных. Цель системы — сбор и первичная обработка биржевой статистики для формирования вероятностных моделей поведения активов без использования классического технического анализа (индикаторов).")
+    st.title("📖 Паспорт Терминала: Методология и Источники")
+    
+    st.markdown("""
+    ### ⚡ Общие сведения
+    **«Терминал Кот»** — это аналитический комплекс, объединяющий фундаментальные макроэкономические метрики, данные по позиционированию крупных спекулянтов и хеджеров (CFTC COT), а также параметры распределения ликвидности на опционных рынках (GEX).
+    
+    Цель системы — предоставить трейдеру объективную картину рынка на основе реального распределения капитала, полностью исключая классический графический технический анализ.
+    """)
     
     st.markdown("---")
-    st.markdown("### 1. Источники Данных")
-    st.markdown("""
-- **CFTC (Commodity Futures Trading Commission)**: Еженедельные отчеты Commitments of Traders (COT). Используются форматы Legacy (Futures Only) и TFF (Traders in Financial Futures).
-- **FRED (Federal Reserve Economic Data)**: API Федерального Резервного Банка Сент-Луиса. Забор макроэкономической статистики (баланс ФРС, денежная масса, инфляция, безработица).
-- **Yahoo Finance**: Источник спотовых и фьючерсных котировок, а также цепей опционов (Option Chains) для американского фондового рынка.
-""")
-
-    st.markdown("---")
-    st.markdown("### 2. Отслеживаемые Метрики")
+    st.markdown("### 📊 1. Основные разделы системы")
     
-    col1, col2 = st.columns(2)
-    with col1:
+    st.markdown("""
+    * **📊 Терминал COT**:
+      * Анализ отчетов **Commitments of Traders (CFTC)** для валют, металлов, индексов и криптовалют.
+      * Оценка позиционирования четырех категорий участников: **Dealers (Дилеры)**, **Asset Managers (Институционалы)**, **Leveraged Funds (Хедж-фонды)** и **Retail (Ритейл)**.
+      * Исторические графики нетто-позиций, индексы сентимента (COT Index) и расчет Z-Score для определения зон перекупленности/перепроданности.
+      * Статистический модуль бэктестинга: оценка исторического Win Rate и матожидания цены после достижения экстремумов.
+      
+    * **📈 Интерактивный Дашборд**:
+      * Сводный аналитический центр, объединяющий все потоки данных в единую картину.
+      * Визуализация динамики ликвидности ФРС США (баланс WALCL, денежная масса M2, доходности гособлигаций).
+      * Интеграция данных по ETF и инсайдерским сделкам.
+      * Автоматическая генерация комплексного ИИ-отчета с помощью **Gemini 2.5 Pro/Flash**, который сопоставляет позиции фондов (COT) с опционными уровнями маркет-мейкеров (GEX).
+      
+    * **🌊 BTC GEX Трекер (Bitcoin Gamma Exposure)**:
+      * Анализ позиционирования дилеров опционов на ключевых криптобиржах (**Deribit, Bybit, OKX**).
+      * Расчет и визуализация уровней волатильности и зон стабильности рынка:
+        * **Г (Gamma Flip)**: Граница смены режима рынка (стабильный Positive Gamma против волатильного Negative Gamma).
+        * **P1/P2 (Gamma Resist.)**: Стены сопротивления.
+        * **N1/N2 (Vol. Trigger)**: Поддержки и триггеры роста волатильности.
+        * **A1/A2 (Magnets)**: Страйки притяжения цены.
+        * **V (Max Volatility)** и **S (Max Stability)**: Внешние границы волатильности.
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 🔌 2. Источники данных")
+    st.markdown("""
+    * **CFTC**: Еженедельные официальные отчеты по фьючерсам и опционам (в форматах Legacy и TFF).
+    * **FRED (St. Louis Fed)**: Макроэкономическая статистика США.
+    * **Yahoo Finance**: Спотовые котировки и параметры традиционных биржевых опционов.
+    * **Deribit / Bybit / OKX API**: Живые опционные стаканы и открытый интерес по Биткоину в режиме реального времени.
+    """)
+    
+    st.markdown("---")
+    st.markdown("### 🧠 3. Роль ИИ-Агента (Gemini)")
+    st.markdown("""
+    ИИ-Агент выступает в роли главного макро-аналитика хедж-фонда. Он фильтрует рыночный шум, сопоставляет длинные позиции фондов в COT с живыми барьерами опционных маркет-мейкеров (GEX) и формирует целостный текстовый сценарий движения цены с рекомендациями для портфеля активов.
+    """)
+    
+    st.stop()
+
+
+elif app_mode == "🌊 BTC GEX Трекер":
+    st.sidebar.subheader("Параметры GEX")
+    selected_exchange = st.sidebar.selectbox(
+        "Выберите биржу:", 
+        ["All Exchanges", "Deribit", "Bybit", "OKX"], 
+        index=0
+    )
+    
+    st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+    
+    if st.sidebar.button("🔄 Обновить данные GEX", use_container_width=True):
+        st.rerun()
+        
+    st.sidebar.markdown("Данные опционов запрашиваются в реальном времени напрямую по API бирж.")
+    
+    # ------------------ BTC GEX Tracker Page UI ------------------
+    st.title("🌊 Биткоин Гамма Экспозиция (BTC GEX)")
+    st.caption("Анализ позиционирования дилеров опционов и уровней рыночной волатильности в реальном времени.")
+    
+    with st.spinner("Сбор опционных цепочек и расчет Gamma Exposure..."):
+        try:
+            gex_df, spot_price = get_aggregate_gex_data(selected_exchange)
+            if gex_df.empty:
+                st.error("Не удалось получить данные с выбранных бирж. Пожалуйста, попробуйте обновить страницу или выбрать другую биржу.")
+                st.stop()
+                
+            metrics = calculate_gex_metrics(gex_df, spot_price)
+        except Exception as e:
+            st.error(f"Ошибка при обработке данных GEX: {str(e)}")
+            st.stop()
+            
+    # Metrics Row
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    
+    total_gex = metrics["total_gex"]
+    gex_m_usd = total_gex / 1_000_000.0
+    
+    # Net GEX label with direction explanation
+    if total_gex >= 0:
+        gex_desc = "🟢 Positive Gamma (Стабильно)"
+    else:
+        gex_desc = "🔴 Negative Gamma (Волатильно)"
+        
+    with m_col1:
+        st.metric(
+            label="Цена BTC (Spot)",
+            value=f"${spot_price:,.2f}",
+            delta="Текущий индексный спот"
+        )
+        
+    with m_col2:
+        st.metric(
+            label="Net GEX (Гамма-экспозиция)",
+            value=f"${gex_m_usd:,.2f}M",
+            delta=gex_desc,
+            delta_color="normal" if total_gex >= 0 else "inverse"
+        )
+        
+    with m_col3:
+        flip_price = metrics["gamma_flip"]
+        if flip_price:
+            flip_diff = ((spot_price - flip_price) / spot_price) * 100
+            st.metric(
+                label="Точка Gamma Flip",
+                value=f"${flip_price:,.2f}",
+                delta=f"До флипа: {flip_diff:+.2f}%"
+            )
+        else:
+            st.metric(
+                label="Точка Gamma Flip",
+                value="Не определен",
+                delta="Нет пересечения"
+            )
+            
+    with m_col4:
+        c_wall = metrics["call_wall"]
+        p_wall = metrics["put_wall"]
+        st.metric(
+            label="Стены Call / Put",
+            value=f"${c_wall:,.0f} / ${p_wall:,.0f}" if (c_wall and p_wall) else "Н/Д",
+            delta="Сильные уровни сопр./подд."
+        )
+        
+    # Extract levels
+    p1 = metrics.get("p1")
+    p2 = metrics.get("p2")
+    n1 = metrics.get("n1")
+    n2 = metrics.get("n2")
+    a1 = metrics.get("a1")
+    a2 = metrics.get("a2")
+    v_level = metrics.get("v")
+    s_level = metrics.get("s")
+    flip_price = metrics.get("gamma_flip")
+
+    # Helper function for GEX values lookup
+    def get_strike_gex_m(strike_val):
+        if strike_val is None:
+            return None
+        strike_df = gex_df[gex_df["strike"] == strike_val]
+        if strike_df.empty:
+            return 0.0
+        return float(strike_df["gex"].sum()) / 1_000_000.0
+
+    # Color map
+    COLOR_MAP_RGB = {
+        "#ef4444": "239, 68, 68",
+        "#10b981": "16, 185, 129",
+        "#8b5cf6": "139, 92, 246",
+        "#ec4899": "236, 72, 153",
+        "#f97316": "249, 115, 22"
+    }
+    
+    def format_badge_html(label, price, gex_val_m=None, color="#ef4444", subtitle=""):
+        if price is None:
+            return ""
+        gex_str = f" {gex_val_m:+.0f}M" if gex_val_m is not None else ""
+        rgb = COLOR_MAP_RGB.get(color, "255, 255, 255")
+        if label in ["V", "S"]:
+            bg_style = f"background: rgba({rgb}, 0.15);"
+        else:
+            bg_style = f"background: rgba(18, 24, 38, 0.6); border-color: rgba({rgb}, 0.4);"
+        return f"""<div style="flex: 1; min-width: 125px; border: 1px solid {color}; border-radius: 8px; padding: 10px; {bg_style} text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<span style="background: {color}; color: #ffffff; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; margin-bottom: 6px;">{label}</span>
+<div style="color: #ffffff; font-size: 1.05em; font-weight: 700; font-family: ui-monospace, monospace;">{price:,.0f}<span style="font-size: 0.8em; color: {color};">{gex_str}</span></div>
+<div style="color: #94a3b8; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; font-weight: 600;">{subtitle}</div>
+</div>"""
+
+    # Add each badge
+    badges_html = []
+    badges_html.append(format_badge_html("V", v_level, color="#ef4444", subtitle="Max Volatility"))
+    badges_html.append(format_badge_html("N2", n2, get_strike_gex_m(n2), color="#ef4444", subtitle="Vol. Trigger"))
+    badges_html.append(format_badge_html("N1", n1, get_strike_gex_m(n1), color="#ef4444", subtitle="Vol. Trigger"))
+    badges_html.append(format_badge_html("A1", a1, get_strike_gex_m(a1), color="#8b5cf6", subtitle="Magnet"))
+    badges_html.append(format_badge_html("Г", flip_price, 0.0, color="#ec4899", subtitle="Regime Change"))
+    badges_html.append(format_badge_html("A2", a2, get_strike_gex_m(a2), color="#8b5cf6", subtitle="Magnet"))
+    badges_html.append(format_badge_html("P1", p1, get_strike_gex_m(p1), color="#10b981", subtitle="Gamma Resist."))
+    badges_html.append(format_badge_html("P2", p2, get_strike_gex_m(p2), color="#10b981", subtitle="Gamma Resist."))
+    badges_html.append(format_badge_html("S", s_level, color="#10b981", subtitle="Max Stability"))
+    
+    full_badges_html = f"""<div style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 25px;">
+{"".join(badges_html)}
+</div>"""
+    
+    st.markdown(full_badges_html, unsafe_allow_html=True)
+
+    # GEX Profile & Price History Subplot Chart
+    st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
+    st.caption("Слева: График цены BTC за последние 7 дней с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
+    
+    with st.spinner("Загрузка истории котировок BTC..."):
+        df_hist = fetch_btc_price_history_binance()
+    
+    # Create Subplot: Column 1 is Price History (85% width), Column 2 is GEX Profile (15% width)
+    fig_gex = make_subplots(
+        rows=1, cols=2, 
+        shared_yaxes=True, 
+        column_widths=[0.85, 0.15],
+        horizontal_spacing=0.01,
+        subplot_titles=("Цена BTC (7 дней)", "GEX Профиль")
+    )
+    
+    # 1. Price History Line (Col 1)
+    if not df_hist.empty:
+        fig_gex.add_trace(
+            go.Scatter(
+                x=df_hist["datetime"],
+                y=df_hist["close"],
+                line=dict(color="#3498db", width=2.5),
+                name="Цена BTC",
+                hovertemplate="<b>Время:</b> %{x}<br><b>Цена:</b> $%{y:,.2f}<extra></extra>"
+            ),
+            row=1, col=1
+        )
+        x_min = df_hist["datetime"].min()
+        x_max = df_hist["datetime"].max()
+    else:
+        x_min = datetime.now() - timedelta(days=7)
+        x_max = datetime.now()
+        
+    # 2. GEX Profile Bar (Col 2)
+    strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
+    # Focus range +/- 15% of spot
+    filtered_strike_gex = strike_gex[
+        (strike_gex["strike"] >= spot_price * 0.85) & 
+        (strike_gex["strike"] <= spot_price * 1.15)
+    ].copy()
+    
+    if filtered_strike_gex.empty:
+        filtered_strike_gex = strike_gex.copy()
+        
+    colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
+    borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
+    
+    fig_gex.add_trace(
+        go.Bar(
+            x=filtered_strike_gex["gex"],
+            y=filtered_strike_gex["strike"],
+            orientation="h",
+            marker=dict(
+                color=colors,
+                line=dict(color=borders, width=1.5)
+            ),
+            name="Gamma Exposure",
+            hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
+        ),
+        row=1, col=2
+    )
+    
+    # 3. Add Colored GEX Level Bands (Green for Resist, Red for Trigger, Purple for Magnet, Pink for Flip)
+    # Green shading between P1 and P2
+    if p1 and p2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(p1, p2), y1=max(p1, p2),
+            fillcolor="rgba(16, 185, 129, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    # Red shading between N1 and N2
+    if n1 and n2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(n1, n2), y1=max(n1, n2),
+            fillcolor="rgba(239, 68, 68, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    # Purple shading between A1 and A2
+    if a1 and a2:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=min(a1, a2), y1=max(a1, a2),
+            fillcolor="rgba(139, 92, 246, 0.05)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+    # Pink shading around Flip Г (±150 USD width)
+    if flip_price:
+        fig_gex.add_shape(
+            type="rect",
+            x0=x_min, x1=x_max,
+            y0=flip_price - 150, y1=flip_price + 150,
+            fillcolor="rgba(236, 72, 153, 0.08)",
+            line=dict(width=0),
+            layer="below",
+            row=1, col=1
+        )
+
+    # 4. Add Horizontal Levels to Column 1 (Price) with staggered labels for overlaps
+    levels_to_draw = []
+    if p2: levels_to_draw.append((p2, "P2", "#10b981", "Gamma Resist 2"))
+    if p1: levels_to_draw.append((p1, "P1", "#10b981", "Gamma Resist 1"))
+    if a2: levels_to_draw.append((a2, "A2", "#8b5cf6", "Magnet 2"))
+    if a1: levels_to_draw.append((a1, "A1", "#8b5cf6", "Magnet 1"))
+    if flip_price: levels_to_draw.append((flip_price, "Г", "#ec4899", "Gamma Flip"))
+    if n1: levels_to_draw.append((n1, "N1", "#ef4444", "Vol Trigger 1"))
+    if n2: levels_to_draw.append((n2, "N2", "#ef4444", "Vol Trigger 2"))
+    if v_level: levels_to_draw.append((v_level, "V", "#f97316", "Max Volatility"))
+    if s_level: levels_to_draw.append((s_level, "S", "#10b981", "Max Stability"))
+    
+    # Sort levels by price to ensure drawing is consistent
+    levels_to_draw = sorted([x for x in levels_to_draw if x[0] is not None], key=lambda x: x[0])
+    
+    # Trace occurrences of rounded strikes to stagger labels horizontally
+    strike_counts = {}
+    for val, name, color, desc in levels_to_draw:
+        if spot_price * 0.85 <= val <= spot_price * 1.15:
+            # Draw individual line
+            fig_gex.add_shape(
+                type="line",
+                x0=x_min, x1=x_max,
+                y0=val, y1=val,
+                line=dict(color=color, width=1.5, dash="dash"),
+                row=1, col=1
+            )
+            
+            # Count overlaps at this exact rounded strike
+            rounded_strike = int(round(val))
+            count = strike_counts.get(rounded_strike, 0)
+            strike_counts[rounded_strike] = count + 1
+            
+            # Shift label horizontally by 18 hours per overlap to keep them completely separate
+            offset_hours = count * 18
+            label_x = x_max - timedelta(hours=offset_hours)
+            
+            # Add annotation badge staggered horizontally
+            fig_gex.add_annotation(
+                x=label_x,
+                y=val,
+                text=f"<b>{name}</b> {val:,.0f}",
+                showarrow=False,
+                xanchor="right" if count > 0 else "left",
+                yanchor="middle",
+                font=dict(color="#ffffff", size=9, family="SF Mono, Courier New, monospace"),
+                bgcolor=color,
+                bordercolor=color,
+                borderwidth=1,
+                borderpad=2,
+                row=1, col=1
+            )
+            
+    fig_gex.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color="#94a3b8", size=12),
+        margin=dict(l=0, r=60, t=30, b=0), # Extra right margin for labels
+        height=600,
+        showlegend=False,
+        yaxis=dict(
+            title="Цена BTC / Страйк ($)",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)",
+            tickformat="$,.0f",
+            range=[spot_price * 0.85, spot_price * 1.15]
+        ),
+        xaxis=dict(
+            title="Дата/Время",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)"
+        ),
+        xaxis2=dict(
+            title="GEX ($ / 1%)",
+            gridcolor="rgba(255,255,255,0.05)",
+            zerolinecolor="rgba(255,255,255,0.05)"
+        )
+    )
+    st.plotly_chart(fig_gex, use_container_width=True)
+    
+    # Subplots / Heatmap & Table columns
+    col_left, col_right = st.columns([1, 1])
+    
+    with col_left:
+        st.markdown("### 📅 Сроки экспирации и открытый интерес")
+        st.caption("Гамма-экспозиция, сгруппированная по датам экспирации.")
+        
+        expiry_gex = gex_df.groupby("expiry_str").agg(
+            gex=("gex", "sum"),
+            oi=("open_interest", "sum")
+        ).reset_index()
+        
+        # Sort by actual date
+        expiry_gex["dt"] = expiry_gex["expiry_str"].apply(lambda x: parse_expiry_date_robust(x, "deribit"))
+        expiry_gex = expiry_gex.dropna(subset=["dt"]).sort_values("dt")
+        
+        fig_expiry = go.Figure()
+        # Draw GEX as bar
+        fig_expiry.add_trace(go.Bar(
+            x=expiry_gex["expiry_str"],
+            y=expiry_gex["gex"],
+            marker=dict(
+                color="rgba(52, 152, 219, 0.6)",
+                line=dict(color="#3498db", width=1.5)
+            ),
+            hovertemplate="<b>Дата:</b> %{x}<br><b>GEX:</b> $%{y:,.2f}<extra></extra>"
+        ))
+        
+        fig_expiry.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=350,
+            xaxis=dict(
+                gridcolor="rgba(255,255,255,0.03)",
+                zerolinecolor="rgba(255,255,255,0.03)"
+            ),
+            yaxis=dict(
+                gridcolor="rgba(255,255,255,0.03)",
+                zerolinecolor="rgba(255,255,255,0.03)",
+                tickformat="$,.0f"
+            ),
+            showlegend=False
+        )
+        st.plotly_chart(fig_expiry, use_container_width=True)
+        
+    with col_right:
+        st.markdown("### 🏢 Доля бирж в совокупной гамме")
+        st.caption("Процентное распределение Гамма Экспозиции по биржам.")
+        
+        exchange_gex = gex_df.groupby("exchange")["gex"].apply(lambda x: abs(x).sum()).reset_index()
+        
+        fig_pie = go.Figure()
+        fig_pie.add_trace(go.Pie(
+            labels=exchange_gex["exchange"],
+            values=exchange_gex["gex"],
+            hole=0.4,
+            marker=dict(colors=["#10b981", "#3498db", "#f59e0b"]),
+            textinfo="percent+label",
+            hovertemplate="<b>Биржа:</b> %{label}<br><b>Абс. Гамма:</b> $%{value:,.2f}<extra></extra>"
+        ))
+        
+        fig_pie.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Inter, sans-serif", color="#94a3b8", size=11),
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=350,
+            showlegend=False
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+        
+    # HTML Table of Top GEX Strikes
+    st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
+    
+    # Sort by absolute GEX to find most critical levels
+    top_gex_df = gex_df.copy()
+    top_gex_df["abs_gex"] = top_gex_df["gex"].abs()
+    top_gex_df = top_gex_df.sort_values("abs_gex", ascending=False).head(20)
+    
+    rows_html = ""
+    for _, row in top_gex_df.iterrows():
+        gex_val = row["gex"]
+        gex_cls = "net-positive" if gex_val >= 0 else "net-negative"
+        gex_str = f"${gex_val:,.2f}"
+        
+        rows_html += f"""<tr>
+<td style="text-align: left; padding: 10px 16px;">{row['exchange']}</td>
+<td class="font-mono" style="text-align: right; padding: 10px 16px; color:#ffffff; font-weight:600;">${row['strike']:,.0f}</td>
+<td style="text-align: right; padding: 10px 16px;">{row['expiry_str']}</td>
+<td style="text-align: right; padding: 10px 16px; color:{'#10b981' if row['option_type']=='C' else '#ef4444'}; font-weight:600;">{row['option_type']}</td>
+<td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['open_interest']:,.2f}</td>
+<td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['implied_volatility']*100:.1f}%</td>
+<td style="text-align: right; padding: 10px 16px;">
+<span class="{gex_cls} font-mono" style="padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 110px; text-align: right;">{gex_str}</span>
+</td>
+</tr>"""
+        
+    table_html = f"""<div class="cot-table-container">
+<table class="cot-table">
+<thead>
+<tr>
+<th style="text-align: left; font-size: 0.85em; color: #6b7280;">БИРЖА</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">СТРАЙК</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЭКСПИРАЦИЯ</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ТИП</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ОТКРЫТЫЙ ИНТЕРЕС</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">IV (ВОЛАТИЛЬНОСТЬ)</th>
+<th style="text-align: right; font-size: 0.85em; color: #6b7280;">GEX (USD / 1%)</th>
+</tr>
+</thead>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</div>"""
+    st.markdown(table_html, unsafe_allow_html=True)
+    
+    # Quick Guide Expander
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("📚 Справочник GEX-уровней и правила интерпретации", expanded=True):
         st.markdown("""
-**Макроэкономика и Ликвидность**
-- `WALCL` (Total Assets): Текущий баланс ФРС США. Указывает на изъятие (QT) или вливание (QE) долларовой ликвидности.
-- `M2SL`: Денежная масса M2.
-- `DGS10` и `DGS2`: Доходности 10- и 2-летних гособлигаций США. Спред между ними используется как индикатор инверсии кривой доходности.
-""")
-    with col2:
-        st.markdown("""
-**Опционный Рынок**
-- `Put/Call Ratio (PCR)`: Соотношение объема торгов пут- и колл-опционами.
-- `Max Pain`: Уровень страйка с максимальным объемом открытого интереса, экспирация на котором принесет наибольшие убытки покупателям опционов.
-- `Volume Anomalies`: Фиксация ситуаций, где дневной объем торгов страйка превышает открытый интерес (Volume > 2 * Open Interest).
-""")
-
-    st.markdown("""
-**Позиционирование (COT)**
-Данные разбиваются на 4 ключевые группы участников (согласно TFF):
-- `Dealer Intermediary`: Маркет-мейкеры, хеджирующие риски.
-- `Asset Manager`: Институциональные инвесторы (пенсионные фонды, ETF), торгующие без кредитного плеча.
-- `Leveraged Funds`: Хедж-фонды и спекулянты, использующие плечо (часто торгуют по тренду).
-- `Retail`: Мелкие некоммерческие трейдеры.
-""")
-
-    st.markdown("---")
-    st.markdown("### 3. Алгоритмы анализа и Бэктестинга")
-    st.markdown("""
-Модуль бэктестинга (`src/backtester.py`) анализирует историю чистой позиции (Net Position = Long - Short) каждого участника и генерирует сигналы на основе перцентилей и Z-Score за периоды от 1 до 3 лет:
-- **Экстремумы позиционирования**: Если группа (например, Asset Managers) достигает 100-го перцентиля (максимальный лонг за год), система помечает это как потенциальную точку разворота.
-- **Расчет Win Rate**: Алгоритм проходит по историческим данным и проверяет, куда шла цена через 4, 12, 26 и 52 недели после появления аналогичного сигнала. Расчитываются средний/медианный возврат и вероятность отработки.
-""")
-
-    st.markdown("---")
-    st.markdown("---")
-    st.markdown("### 4. Роль ИИ-Агента и Структура Приложения")
-    st.markdown("""
-- **LLM (Gemini 2.5 Pro/Flash)** используется как центральный мозг для синтеза данных.
-- **Интерактивный Дашборд**: ИИ сводит разрозненные числовые аномалии (COT + Макро + Опционы) и свежие новости в единый масштабный текстовый отчет.
-- **Календарь событий**: ИИ автоматически анализирует предстоящие макроэкономические события (из встроенного календаря ForexFactory) и формирует сценарии реакции рынка (ВВЕРХ/ВНИЗ).
-- **Обучение кота**: Пользователь может загружать собственные PDF-отчеты или ссылки на статьи, а также управлять списком "Постоянных источников", которые агент проверяет автоматически.
-""")
-
+        ### 🧭 Как интерпретировать уровни гамма-экспозиции (GEX):
+        
+        * **Режим Гаммы (Gamma Regime):**
+          * **🟢 Положительная Гамма (Цена выше Г / Зеленая зона):** Рынок спокойный. Дилеры совершают сделки против движения цены (продают на росте, покупают на падении), подавляя волатильность. Цена обычно флэтит или медленно дрейфует.
+          * **🔴 Отрицательная Гамма (Цена ниже Г / Красная зона):** Рынок волатильный. Дилеры совершают сделки в направлении движения цены (продают при падении, покупают при росте), усиливая тренд. Возможны резкие проскальзывания, импульсы и повышенная скорость движений.
+         
+        * **Ключевые уровни:**
+          * **Г (Gamma Flip / Regime Change):** «Линия на песке». Точка перехода между стабильностью и хаосом.
+          * **P1 / P2 (Gamma Resist.):** Уровни сильного сопротивления (Call-стены). Чем больше объем (+M), тем сложнее цене пробить этот уровень вверх.
+          * **N1 / N2 (Vol. Trigger):** Уровни сильной поддержки / триггеры падения. Пробитие N1 вниз часто открывает дорогу к N2 и вызывает резкое падение.
+          * **A1 / A2 (Magnet):** Уровни притяжения (магниты). Цена стремится застрять на них, особенно по пятницам в день экспирации опционов (пин-риск).
+          * **V (Max Volatility) и S (Max Stability):** Экстремальные границы зоны. Выход за них означает переход в фазу сильного тренда (выше S) или панического обвала (ниже V).
+        """)
+        
     st.stop()
 
 

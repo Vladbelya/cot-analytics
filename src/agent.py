@@ -386,7 +386,7 @@ JSON STRUCTURE REQUIRED:
     "RATES": "Short analysis of DGS10 and DGS2 (Rates & Yield Curve).",
     "INFLATION": "Short analysis of CPIAUCSL and UNRATE.",
     "COT": "Analysis of COT positioning. You MUST explicitly write separately about the changes in opening/closing longs and shorts relative to the previous report. Detail exactly which participants (Asset Managers, Leveraged Funds, Dealers, Retail) reduced positions and which gained, and exactly which positions (longs/shorts).",
-    "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies).",
+    "OPTIONS": "Analysis of Options (PCR, Max Pain, Anomalies). For Bitcoin, you MUST synthesize COT positioning and GEX (Gamma Exposure) distribution (Flip Level, Call/Put Walls, Vol Triggers, Magnet Zones). Contrast Leveraged Funds shorting with positive/negative dealer GEX to identify squeeze/liquidation risks.",
     "ETFS": "Analysis of ETF volume anomalies."
   }},
   "conclusion": "A comprehensive, highly detailed final synthesis linking all these metrics together. State the ultimate causal chain and directional impact on the user's assets."
