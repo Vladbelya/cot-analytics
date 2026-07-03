@@ -1275,6 +1275,15 @@ elif app_mode == "🤖 Бумажный бот & Бэктесты":
     col3.metric("Активные сделки", f"{len(active_pos)} шт.")
     col4.metric("Доля прибыльных сделок (Win Rate)", f"{win_rate:.1f}%")
     
+    with st.expander("📋 Активные торговые системы по всем 16 инструментам (Авто-выбор на текущий месяц)"):
+        strat_rows = []
+        for sym, strat in state.get("selected_strategies", {}).items():
+            strat_rows.append({"Инструмент": sym, "Активная ТС": strat, "Комиссия за сделку": "0.05%"})
+        if strat_rows:
+            st.dataframe(pd.DataFrame(strat_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Стратегии оптимизируются...")
+            
     st.markdown("---")
     
     # 3. Active Positions Section
@@ -1386,18 +1395,10 @@ elif app_mode == "🤖 Бумажный бот & Бэктесты":
         st.dataframe(results_df.drop(columns=["raw_return"]), use_container_width=True, hide_index=True)
         
         # Highlight best strategy
-        st.success(f"🏆 **Рекомендация месяца:** Самая прибыльная стратегия для **{selected_backtest_asset}** — **'{best_strat}'** (Доходность: {best_return:+.2f}%).")
+        st.success(f"🏆 **Рекомендация месяца:** Самая прибыльная стратегия для **{selected_backtest_asset}** — **'{best_strat}'** (Доходность: {best_return:+.2f}% с учетом комиссии 0.05%).")
         
-        # Interactive activator button
         current_active_strat = state["selected_strategies"].get(selected_backtest_asset, "Strategy A (COT Trend)")
-        st.info(f"Текущая активная ТС для {selected_backtest_asset} в боте: **'{current_active_strat}'**.")
-        
-        if current_active_strat != best_strat:
-            if st.button(f"🎯 АКТИВИРОВАТЬ СТРАТЕГИЮ '{best_strat}' ДЛЯ {selected_backtest_asset}", use_container_width=True, type="primary"):
-                bot.state["selected_strategies"][selected_backtest_asset] = best_strat
-                bot.save_state()
-                st.success(f"Стратегия '{best_strat}' успешно активирована для реальных сделок по {selected_backtest_asset}!")
-                st.rerun()
+        st.info(f"Текущая активная ТС для {selected_backtest_asset} в боте: **'{current_active_strat}'** (автоматически обновляется раз в месяц).")
                 
     st.markdown("---")
     

@@ -7,6 +7,7 @@ import requests
 
 # Default state file path
 STATE_FILE = "data/paper_trading_state.json"
+COMMISSION_RATE = 0.0005  # 0.05% fee per trade execution (maker/taker average)
 
 class RiskManager:
     @staticmethod
@@ -28,12 +29,11 @@ class BacktestEngine:
     @staticmethod
     def run_backtest(df, asset_name, strategy_name, start_date="2023-01-01"):
         """
-        Simulates trading on historical weekly data of an asset.
+        Simulates trading on historical weekly data of an asset, accounting for fees.
         Returns:
             summary: dict (net_return, win_rate, profit_factor, max_drawdown, trade_count)
             trades: list of closed trades
         """
-        # Ensure df has datetime index or column
         if "datetime" in df.columns:
             df_hist = df[df["datetime"] >= pd.to_datetime(start_date)].copy().sort_values("datetime")
         else:
@@ -74,7 +74,9 @@ class BacktestEngine:
             if position == "LONG":
                 # Check low for Stop Loss
                 if low <= sl:
-                    pnl = (sl - entry_price) * position_size
+                    # Deduct entry and exit commission fees
+                    fees = (entry_price + sl) * position_size * COMMISSION_RATE
+                    pnl = (sl - entry_price) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -85,12 +87,13 @@ class BacktestEngine:
                         "exit_price": sl,
                         "profit_usd": pnl,
                         "type": "SL",
-                        "rationale": f"Закрытие по стоп-лоссу на уровне ${sl:,.2f}"
+                        "rationale": f"Закрытие по стоп-лоссу на уровне ${sl:,.2f} (Комиссия: ${fees:,.2f})"
                     })
                     position = None
                 # Check high for Take Profit
                 elif high >= tp:
-                    pnl = (tp - entry_price) * position_size
+                    fees = (entry_price + tp) * position_size * COMMISSION_RATE
+                    pnl = (tp - entry_price) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -101,14 +104,15 @@ class BacktestEngine:
                         "exit_price": tp,
                         "profit_usd": pnl,
                         "type": "TP",
-                        "rationale": f"Закрытие по тейк-профиту на уровне ${tp:,.2f}"
+                        "rationale": f"Закрытие по тейк-профиту на уровне ${tp:,.2f} (Комиссия: ${fees:,.2f})"
                     })
                     position = None
                     
             elif position == "SHORT":
                 # Check high for Stop Loss
                 if high >= sl:
-                    pnl = (entry_price - sl) * position_size
+                    fees = (entry_price + sl) * position_size * COMMISSION_RATE
+                    pnl = (entry_price - sl) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -119,12 +123,13 @@ class BacktestEngine:
                         "exit_price": sl,
                         "profit_usd": pnl,
                         "type": "SL",
-                        "rationale": f"Закрытие по стоп-лоссу на уровне ${sl:,.2f}"
+                        "rationale": f"Закрытие по стоп-лоссу на уровне ${sl:,.2f} (Комиссия: ${fees:,.2f})"
                     })
                     position = None
                 # Check low for Take Profit
                 elif low <= tp:
-                    pnl = (entry_price - tp) * position_size
+                    fees = (entry_price + tp) * position_size * COMMISSION_RATE
+                    pnl = (entry_price - tp) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -135,7 +140,7 @@ class BacktestEngine:
                         "exit_price": tp,
                         "profit_usd": pnl,
                         "type": "TP",
-                        "rationale": f"Закрытие по тейк-профиту на уровне ${tp:,.2f}"
+                        "rationale": f"Закрытие по тейк-профиту на уровне ${tp:,.2f} (Комиссия: ${fees:,.2f})"
                     })
                     position = None
             
@@ -144,7 +149,8 @@ class BacktestEngine:
             if sig_val == 1 and position != "LONG":
                 # Close existing short
                 if position == "SHORT":
-                    pnl = (entry_price - price) * position_size
+                    fees = (entry_price + price) * position_size * COMMISSION_RATE
+                    pnl = (entry_price - price) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -155,7 +161,7 @@ class BacktestEngine:
                         "exit_price": price,
                         "profit_usd": pnl,
                         "type": "REVERSAL",
-                        "rationale": "Разворот позиции: получен противоположный сигнал Long"
+                        "rationale": f"Разворот позиции: противоположный сигнал Long (Комиссия: ${fees:,.2f})"
                     })
                 
                 # Open Long
@@ -163,13 +169,14 @@ class BacktestEngine:
                 entry_price = price
                 entry_time = date_val
                 sl = price - 2.0 * atr
-                tp = price + 3.0 * atr # 1.5x Risk/Reward ratio
+                tp = price + 3.0 * atr
                 position_size = RiskManager.calculate_position_size(balance, price, sl, 0.02)
                 
             elif sig_val == -1 and position != "SHORT":
                 # Close existing long
                 if position == "LONG":
-                    pnl = (price - entry_price) * position_size
+                    fees = (entry_price + price) * position_size * COMMISSION_RATE
+                    pnl = (price - entry_price) * position_size - fees
                     balance += pnl
                     trades_log.append({
                         "symbol": asset_name,
@@ -180,7 +187,7 @@ class BacktestEngine:
                         "exit_price": price,
                         "profit_usd": pnl,
                         "type": "REVERSAL",
-                        "rationale": "Разворот позиции: получен противоположный сигнал Short"
+                        "rationale": f"Разворот позиции: противоположный сигнал Short (Комиссия: ${fees:,.2f})"
                     })
                 
                 # Open Short
@@ -231,13 +238,10 @@ class BacktestEngine:
         Generates signal list (+1 Long, -1 Short, 0 Hold) matching the strategy name.
         """
         signals = np.zeros(len(df))
-        
-        # Determine if asset is BTC to allow GEX strategies
         is_btc = (asset_name == "BTC")
         
         if is_btc:
             if strategy_name == "Strategy A (COT Trend)":
-                # Z-Score boundaries
                 z = df.get("net_pct_oi_zscore_52w", np.zeros(len(df)))
                 for i in range(1, len(df)):
                     if z.iloc[i] > 1.5:
@@ -246,8 +250,6 @@ class BacktestEngine:
                         signals[i] = -1
                         
             elif strategy_name == "Strategy B (GEX Walls)":
-                # Reversion from walls
-                # Simulated Gamma Flip and Walls historically
                 close = df["close"].values
                 for i in range(1, len(df)):
                     g_flip = close[i-1] * 0.98
@@ -277,7 +279,6 @@ class BacktestEngine:
                     elif z.iloc[i] < -1.0 and close[i] < g_flip:
                         signals[i] = -1
         else:
-            # Non-BTC assets get COT strategies
             if strategy_name == "Strategy A (COT Trend)":
                 z = df.get("net_pct_oi_zscore_52w", np.zeros(len(df)))
                 for i in range(1, len(df)):
@@ -335,7 +336,8 @@ class BotEngine:
             "active_positions": {},
             "journal": [],
             "win_rate": 0.0,
-            "selected_strategies": {}
+            "selected_strategies": {},
+            "last_optimization_month": ""
         }
         os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
         with open(STATE_FILE, "w", encoding="utf-8") as f:
@@ -391,10 +393,70 @@ class BotEngine:
             
         return 0.0
 
+    def run_monthly_optimization(self):
+        """
+        Runs historical backtests for all strategies across all assets,
+        and automatically selects the one with the highest return as active.
+        Deducts transaction fees during selection.
+        """
+        current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        if self.state.get("last_optimization_month") == current_month:
+            return # Already optimized for this month
+            
+        symbols = [
+            "BTC", "ETH", "Gold", "EUR/USD", "GBP/USD", "JPY/USD",
+            "CAD/USD", "AUD/USD", "CHF/USD", "Brent", "Natural Gas",
+            "S&P 500", "Nasdaq 100", "Dow Jones", "Russell 2000", "US 10Y Yield"
+        ]
+        
+        for symbol in symbols:
+            try:
+                participant = "Leveraged Funds" if symbol in ["BTC", "ETH"] else "Asset Manager"
+                df = self.fetch_market_df(symbol, participant, use_combined=True)
+            except Exception:
+                continue
+                
+            if df.empty or len(df) < 10:
+                continue
+                
+            if symbol == "BTC":
+                strategies = [
+                    "Strategy A (COT Trend)",
+                    "Strategy B (GEX Walls)",
+                    "Strategy C (Gamma Flip Breakout)",
+                    "Strategy D (Synergy COT+GEX)"
+                ]
+            else:
+                strategies = [
+                    "Strategy A (COT Trend)",
+                    "Strategy B (COT Contrarian)",
+                    "Strategy C (COT Crossover)",
+                    "Strategy D (COT Momentum)"
+                ]
+                
+            best_return = -999.0
+            best_strat = strategies[0]
+            
+            for strat in strategies:
+                summary, _ = BacktestEngine.run_backtest(df, symbol, strat)
+                if summary["net_return"] > best_return:
+                    best_return = summary["net_return"]
+                    best_strat = strat
+                    
+            # Automatically activate best strategy
+            self.state["selected_strategies"][symbol] = best_strat
+            
+        self.state["last_optimization_month"] = current_month
+        self.save_state()
+
     def update_positions_and_signals(self, gex_metrics_btc=None):
         """
         Updates active positions and scans for new entry signals.
+        Deducts transaction fees (maker/taker commission).
         """
+        # First check and run monthly optimization automatically
+        self.run_monthly_optimization()
+        
         active = self.state["active_positions"]
         journal = self.state["journal"]
         balance = self.state["balance"]
@@ -420,15 +482,20 @@ class BotEngine:
             entry = pos["entry_price"]
             size = pos["position_size"]
             
+            # Net PnL calculation including commission
+            fees = (entry + live_price) * size * COMMISSION_RATE
             if direction == "LONG":
-                unrealized = (live_price - entry) * size
+                unrealized = (live_price - entry) * size - fees
             else:
-                unrealized = (entry - live_price) * size
+                unrealized = (entry - live_price) * size - fees
+                
             pos["unrealized_pnl"] = unrealized
             equity += unrealized
             
+            # Check SL
             if (direction == "LONG" and live_price <= sl) or (direction == "SHORT" and live_price >= sl):
-                realized_pnl = (sl - entry) * size if direction == "LONG" else (entry - sl) * size
+                realized_fees = (entry + sl) * size * COMMISSION_RATE
+                realized_pnl = (sl - entry) * size - realized_fees if direction == "LONG" else (entry - sl) * size - realized_fees
                 balance += realized_pnl
                 journal.append({
                     "symbol": symbol,
@@ -439,12 +506,14 @@ class BotEngine:
                     "exit_price": sl,
                     "profit_usd": realized_pnl,
                     "type": "SL",
-                    "rationale": f"Закрытие по стоп-лоссу: цена пробила защитный уровень ${sl:,.2f}"
+                    "rationale": f"Закрытие по стоп-лоссу: цена достигла уровня ${sl:,.2f} (Комиссия: ${realized_fees:,.2f})"
                 })
                 closed_symbols.append(symbol)
                 
+            # Check TP
             elif (direction == "LONG" and live_price >= tp) or (direction == "SHORT" and live_price <= tp):
-                realized_pnl = (tp - entry) * size if direction == "LONG" else (entry - tp) * size
+                realized_fees = (entry + tp) * size * COMMISSION_RATE
+                realized_pnl = (tp - entry) * size - realized_fees if direction == "LONG" else (entry - tp) * size - realized_fees
                 balance += realized_pnl
                 journal.append({
                     "symbol": symbol,
@@ -455,7 +524,7 @@ class BotEngine:
                     "exit_price": tp,
                     "profit_usd": realized_pnl,
                     "type": "TP",
-                    "rationale": f"Закрытие по тейк-профиту: цена достигла целевого уровня ${tp:,.2f}"
+                    "rationale": f"Закрытие по тейк-профиту: цена достигла уровня ${tp:,.2f} (Комиссия: ${realized_fees:,.2f})"
                 })
                 closed_symbols.append(symbol)
                 
@@ -469,6 +538,7 @@ class BotEngine:
         profits = [t["profit_usd"] for t in journal if t["profit_usd"] > 0]
         self.state["win_rate"] = (len(profits) / len(journal) * 100.0) if journal else 0.0
         
+        # Look for new signal entries
         for symbol in symbols:
             if symbol in active:
                 continue
@@ -482,7 +552,14 @@ class BotEngine:
             if df.empty or len(df) < 5:
                 continue
                 
-            selected_strategy = self.state["selected_strategies"].get(symbol, "Strategy A (COT Trend)")
+            # Use active optimization strategy
+            selected_strategy = self.state["selected_strategies"].get(symbol)
+            if not selected_strategy:
+                # Force optimization trigger if missing
+                self.state["last_optimization_month"] = ""
+                self.run_monthly_optimization()
+                selected_strategy = self.state["selected_strategies"].get(symbol, "Strategy A (COT Trend)")
+                
             sig_series = BacktestEngine.generate_signals(df, symbol, selected_strategy)
             latest_sig = sig_series[-1]
             
@@ -519,7 +596,7 @@ class BotEngine:
                     g_regime = "Positive Gamma" if live_price > g_flip else "Negative Gamma"
                     gex_detail = f" BTC торгуется в режиме {g_regime} (динамический флип на ${g_flip:,.0f})."
                 
-                rationale_text = f"Вход {direction} по {symbol} согласно стратегии '{selected_strategy}'."
+                rationale_text = f"Вход {direction} по {symbol} согласно авто-выбранной стратегии '{selected_strategy}'."
                 rationale_text += f" COT Index: {cot_index:.1f}% (Z-Score: {cot_z:.2f})." + gex_detail
                 
                 active[symbol] = {
@@ -535,5 +612,6 @@ class BotEngine:
                     "rationale": rationale_text
                 }
                 
+        # Re-calc absolute equity balance
         self.state["equity"] = self.state["balance"] + sum(p["unrealized_pnl"] for p in active.values())
         self.save_state()
