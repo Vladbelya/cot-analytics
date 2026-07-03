@@ -876,16 +876,26 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     selected_window = st.sidebar.selectbox(
         "Окно графиков GEX:",
-        ["24 часа", "3 дня (72 часа)", "7 дней (168 часов)"],
-        index=1
+        [
+            "1 час (минутки)",
+            "4 часа (минутки)",
+            "12 часов (минутки)",
+            "24 часа",
+            "3 дня (72 часа)",
+            "7 дней (168 часов)"
+        ],
+        index=2
     )
     
-    window_hours_map = {
-        "24 часа": 24,
-        "3 дня (72 часа)": 72,
-        "7 дней (168 часов)": 168
+    window_config_map = {
+        "1 час (минутки)": (60, "1m"),
+        "4 часа (минутки)": (240, "1m"),
+        "12 часов (минутки)": (720, "1m"),
+        "24 часа": (24, "1h"),
+        "3 дня (72 часа)": (72, "1h"),
+        "7 дней (168 часов)": (168, "1h")
     }
-    hours_to_load = window_hours_map[selected_window]
+    hours_to_load, selected_interval = window_config_map[selected_window]
     
     st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
     
@@ -986,7 +996,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
     st.caption(f"Слева: Свечной график цены BTC за последние {selected_window} с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
     
     with st.spinner("Загрузка истории котировок BTC..."):
-        df_hist = fetch_btc_price_history_binance(limit=hours_to_load)
+        df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval=selected_interval)
         
     fig_gex = make_subplots(
         rows=1, cols=2, 

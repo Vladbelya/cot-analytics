@@ -417,13 +417,13 @@ def calculate_gex_metrics(df, spot_price):
         "simulated_gex": net_gex_profile
     }
 
-def fetch_btc_price_history_binance(limit=168):
+def fetch_btc_price_history_binance(limit=168, interval="1h"):
     """
-    Fetches price history for BTCUSDT from Binance with a dynamic limit of hours.
+    Fetches price history for BTCUSDT from Binance with dynamic limit and interval (e.g. 1m or 1h).
     Falls back to yfinance if Binance is unavailable.
     """
     try:
-        url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit={limit}"
+        url = f"https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit={limit}"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         data = r.json()
@@ -450,15 +450,18 @@ def fetch_btc_price_history_binance(limit=168):
         import yfinance as yf
         tk = yf.Ticker("BTC-USD")
         
-        # Map hour limit to yfinance period
-        if limit <= 24:
+        yf_interval = "1h" if interval == "1h" else "1m"
+        if yf_interval == "1m":
             period = "1d"
-        elif limit <= 72:
-            period = "3d"
         else:
-            period = "7d"
+            if limit <= 24:
+                period = "1d"
+            elif limit <= 72:
+                period = "3d"
+            else:
+                period = "7d"
             
-        df_yf = tk.history(period=period, interval="1h").reset_index()
+        df_yf = tk.history(period=period, interval=yf_interval).reset_index()
         if not df_yf.empty:
             df_yf = df_yf.rename(columns={
                 "Datetime": "datetime", 
@@ -468,6 +471,8 @@ def fetch_btc_price_history_binance(limit=168):
                 "Close": "close",
                 "Volume": "volume"
             })
+            if len(df_yf) > limit:
+                df_yf = df_yf.tail(limit).copy()
             return df_yf
     except Exception:
         pass
@@ -477,14 +482,14 @@ def fetch_btc_price_history_binance(limit=168):
 
 def calculate_historical_gex_heatmap(gex_df, df_hist):
     """
-    Simulates historical GEX profiles by recalculating GEX at historical spot prices
-    using the current option chain structure.
+    Simulates historical GEX profiles by shifting the option chain strikes
+    relative to the spot price change to reflect sticky-delta positioning.
     """
     if gex_df.empty or df_hist.empty:
         return [], [], np.zeros((0,0)), [], []
         
-    # We will use 40 time steps from df_hist to keep it extremely fast
-    step = max(1, len(df_hist) // 40)
+    # We will use 60 time steps to make the heatmap time-resolution high
+    step = max(1, len(df_hist) // 60)
     df_sampled = df_hist.iloc[::step].copy()
     
     times = df_sampled["datetime"].tolist()
@@ -493,10 +498,12 @@ def calculate_historical_gex_heatmap(gex_df, df_hist):
     min_spot = min(spots)
     max_spot = max(spots)
     
-    # 4% margin below min and above max for dynamic centering
-    min_strike = int((min_spot * 0.96) // 100) * 100
-    max_strike = int((max_spot * 1.04) // 100) * 100
+    # Dynamic Y axis sizing around actual price movement range
+    min_strike = int((min_spot - 3000) // 100) * 100
+    max_strike = int((max_spot + 3000) // 100) * 100
     strikes_range = list(range(min_strike, max_strike + 100, 100))
+    
+    current_spot = float(df_hist["close"].iloc[-1])
     
     opt_strikes = gex_df["strike"].values
     opt_expiries = gex_df["expiry_dt"].values
@@ -510,7 +517,7 @@ def calculate_historical_gex_heatmap(gex_df, df_hist):
     
     for t_idx, (t_val, s_val) in enumerate(zip(times, spots)):
         t_val_naive = t_val.replace(tzinfo=None) if hasattr(t_val, "tzinfo") and t_val.tzinfo is not None else t_val
-        # Time to maturity for each option in years at this historical time
+        # Time to maturity in years at this time step
         ts = []
         for exp in opt_expiries:
             exp_naive = exp.replace(tzinfo=None) if hasattr(exp, "tzinfo") and exp.tzinfo is not None else exp
@@ -518,30 +525,35 @@ def calculate_historical_gex_heatmap(gex_df, df_hist):
             ts.append(max(1.0, dt_sec) / (365.0 * 24.0 * 3600.0))
         ts = np.array(ts)
         
-        # Calculate gammas for the option chain at spot s_val
+        # Sticky-delta shift: as spot price moves, option strikes are modeled as shifting with spot
+        delta_s = (s_val - current_spot) * 0.85
+        shifted_strikes = opt_strikes + delta_s
+        
+        # Calculate gammas for the shifted options strikes at spot s_val
         gammas = calculate_gamma_vectorized(
-            spots=np.full_like(opt_strikes, s_val),
-            strikes=opt_strikes,
+            spots=np.full_like(shifted_strikes, s_val),
+            strikes=shifted_strikes,
             ts=ts,
             ivs=opt_ivs
         )
         
-        # Dollar GEX
+        # Dollar GEX at this time step
         gex_vals = gammas * opt_ois * opt_sizes * (s_val ** 2) * 0.01 * opt_dirs
         
-        # Distribute the GEX values to the nearest strikes in strikes_range
-        for strike, gex in zip(opt_strikes, gex_vals):
-            if min_strike <= strike <= max_strike:
-                s_idx = min(range(len(strikes_range)), key=lambda i: abs(strikes_range[i] - strike))
+        # Distribute GEX to nearest grid strike
+        for s_strike, gex in zip(shifted_strikes, gex_vals):
+            if min_strike <= s_strike <= max_strike:
+                s_idx = min(range(len(strikes_range)), key=lambda i: abs(strikes_range[i] - s_strike))
                 z_matrix[s_idx, t_idx] += gex
                 
-        # Calculate the Gamma Flip point at this spot
-        sim_spots = np.linspace(s_val * 0.8, s_val * 1.2, 30)
+        # Calculate the Gamma Flip point for this spot price
+        sim_spots = np.linspace(s_val * 0.85, s_val * 1.15, 30)
         sim_net_gex = []
         for sim_s in sim_spots:
+            sim_shifted = opt_strikes + (sim_s - current_spot) * 0.85
             sim_gammas = calculate_gamma_vectorized(
-                spots=np.full_like(opt_strikes, sim_s),
-                strikes=opt_strikes,
+                spots=np.full_like(sim_shifted, sim_s),
+                strikes=sim_shifted,
                 ts=ts,
                 ivs=opt_ivs
             )
