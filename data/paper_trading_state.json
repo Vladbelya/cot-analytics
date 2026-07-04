@@ -1,17 +1,17 @@
 {
     "balance": 100000.0,
-    "equity": 100013.09994977183,
+    "equity": 100284.97250157809,
     "active_positions": {
         "BTC": {
             "symbol": "BTC",
             "direction": "LONG",
             "entry_time": "2026-07-03 15:19",
             "entry_price": 62135.25,
-            "current_price": 62240.93,
+            "current_price": 63144.0,
             "stop_loss": 55495.23828125,
             "take_profit": 72095.267578125,
             "position_size": 0.30120428769009844,
-            "unrealized_pnl": 13.099949771831955,
+            "unrealized_pnl": 284.9725015780869,
             "rationale": "\u0412\u0445\u043e\u0434 LONG \u043f\u043e BTC \u0441\u043e\u0433\u043b\u0430\u0441\u043d\u043e \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u0438 'Strategy A (COT Trend)'. COT Index: 100.0% (Z-Score: 2.40). BTC \u0442\u043e\u0440\u0433\u0443\u0435\u0442\u0441\u044f \u0432 \u0440\u0435\u0436\u0438\u043c\u0435 Positive Gamma (\u0434\u0438\u043d\u0430\u043c\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0444\u043b\u0438\u043f \u043d\u0430 $61,234)."
         }
     },

@@ -484,176 +484,39 @@ def generate_interpretation_html(interp, market_name, participant_name):
     return html
 
 def draw_cot_chart(plot_df, market_name, participant_name, chart_height=650):
-    fig = make_subplots(
-        rows=3, cols=1, 
-        shared_xaxes=True, 
-        vertical_spacing=0.06,
-        row_heights=[0.40, 0.30, 0.30]
-    )
-    # 1. Price
-    fig.add_trace(go.Scatter(
-        x=plot_df["report_date"], 
-        y=plot_df["close"], 
-        name="Цена", 
-        line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), 
-        mode="lines"
-    ), row=1, col=1)
-    
-    # Load backtest thresholds for active coloring and placement
     from src.analytics import load_backtest_thresholds
-    thresh = load_backtest_thresholds(market_name, participant_name)
-    z_up = thresh["zscore_upper"]
-    z_low = thresh["zscore_lower"]
-    pct_up = thresh["percentile_upper"]
-    pct_low = thresh["percentile_lower"]
-    rule_type = thresh["rule_type"]
+    from src.tv_charts import render_tv_cot_chart
     
-    color_up = "rgba(231, 76, 60, 0.6)" if rule_type == "contrarian" else "rgba(46, 204, 113, 0.6)"
-    color_low = "rgba(46, 204, 113, 0.6)" if rule_type == "contrarian" else "rgba(231, 76, 60, 0.6)"
-    
-    # 2. Z-Score (52w) of Positions
-    zscore_values = plot_df["net_pct_oi_zscore_52w"]
-    fig.add_trace(go.Scatter(
-        x=plot_df["report_date"], 
-        y=zscore_values, 
-        name="Z-Score позиций (52н)", 
-        line=dict(color="#f39c12", width=2.0), 
-        mode="lines"
-    ), row=2, col=1)
-    
-    # Add horizontal lines for Z-Score thresholds
-    fig.add_hline(y=z_up, line_dash="dash", line_color=color_up, row=2, col=1)
-    fig.add_hline(y=0.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
-    fig.add_hline(y=z_low, line_dash="dash", line_color=color_low, row=2, col=1)
-    
-    # 3. Percentile (52w) of Positions
-    pct_values = plot_df["cot_index_net_pct_oi_52w"]
-    fig.add_trace(go.Scatter(
-        x=plot_df["report_date"], 
-        y=pct_values, 
-        name="Перцентиль позиций (52н)", 
-        line=dict(color="#3498db", width=2.0), 
-        mode="lines"
-    ), row=3, col=1)
-    
-    # Add horizontal lines for Percentile thresholds
-    fig.add_hline(y=pct_up, line_dash="dash", line_color=color_up, row=3, col=1)
-    fig.add_hline(y=50.0, line_dash="dot", line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
-    fig.add_hline(y=pct_low, line_dash="dash", line_color=color_low, row=3, col=1)
-    
-    fig.update_layout(
-        height=chart_height, 
-        template="plotly_dark", 
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), 
-        margin=dict(l=20, r=20, t=30, b=20), 
-        hovermode="x unified", 
-        paper_bgcolor="rgba(0,0,0,0)", 
-        plot_bgcolor="rgba(0,0,0,0)", 
-        hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter")
-    )
-
-    
-    for r in [1, 2, 3]:
-        fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
-        fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
+    try:
+        thresh = load_backtest_thresholds(market_name, participant_name)
+        z_up = thresh["zscore_upper"]
+        z_low = thresh["zscore_lower"]
+        pct_up = thresh["percentile_upper"]
+        pct_low = thresh["percentile_lower"]
+        rule_type = thresh["rule_type"]
         
-    fig.update_yaxes(title_text="Цена актива", row=1, col=1)
-    fig.update_yaxes(title_text="Z-Score позиций", row=2, col=1)
-    fig.update_yaxes(title_text="Перцентиль позиций (%)", row=3, col=1)
-    return fig
-
-
+        color_up = "#ef4444" if rule_type == "contrarian" else "#10b981"
+        color_low = "#10b981" if rule_type == "contrarian" else "#ef4444"
+    except Exception:
+        z_up, z_low = 2.0, -2.0
+        pct_up, pct_low = 80.0, 20.0
+        color_up, color_low = "#ef4444", "#10b981"
+        
+    return render_tv_cot_chart(
+        df_plot=plot_df, 
+        market_name=market_name, 
+        participant_name=participant_name, 
+        z_up=z_up, 
+        z_low=z_low, 
+        pct_up=pct_up, 
+        pct_low=pct_low, 
+        color_up=color_up, 
+        color_low=color_low
+    )
 
 def draw_flows_chart(plot_df, market_name, chart_height=750):
-    fig = make_subplots(
-        rows=4, cols=1, 
-        shared_xaxes=True, 
-        vertical_spacing=0.05,
-        row_heights=[0.31, 0.23, 0.23, 0.23]
-    )
-    
-    # --- Dynamic WoW Net % OI Spike Overlays (Top/Bottom 5% changes) - Anomaly Indicators ---
-    wow_series = plot_df["wow_change_net_pct_oi"].dropna()
-    if len(wow_series) > 10:
-        q95 = wow_series.quantile(0.95)
-        q05 = wow_series.quantile(0.05)
-        for _, row in plot_df.iterrows():
-            val = row.get("wow_change_net_pct_oi", 0)
-            if val >= q95:
-                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(46, 204, 113, 0.15)", row="all", col=1, layer="below")
-            elif val <= q05:
-                fig.add_vline(x=row["report_date"], line_width=10, line_color="rgba(231, 76, 60, 0.15)", row="all", col=1, layer="below")
-
-    # Row 1: Price
-    fig.add_trace(go.Scatter(
-        x=plot_df["report_date"], 
-        y=plot_df["close"], 
-        name="Цена", 
-        line=dict(color=MARKETS.get(market_name, {}).get("color", "#ffffff"), width=2.0), 
-        mode="lines"
-    ), row=1, col=1)
-    
-    # Row 2: Long Flow (Приток/Отток в лонг)
-    long_flow = plot_df["long_change"]
-    long_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in long_flow]
-    fig.add_trace(go.Bar(
-        x=plot_df["report_date"], 
-        y=long_flow, 
-        name="Приток/Отток в Лонг", 
-        marker_color=long_colors, 
-        marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Лонг поток: %{y:+.0f} контр.<extra></extra>"
-    ), row=2, col=1)
-    fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=2, col=1)
-    
-    # Row 3: Short Flow (Приток/Отток в шорт)
-    short_flow = plot_df["short_change"]
-    short_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in short_flow]
-    fig.add_trace(go.Bar(
-        x=plot_df["report_date"], 
-        y=short_flow, 
-        name="Приток/Отток в Шорт", 
-        marker_color=short_colors, 
-        marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Шорт поток: %{y:+.0f} контр.<extra></extra>"
-    ), row=3, col=1)
-    fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=3, col=1)
-    
-    # Row 4: Net Delta (Чистая Дельта)
-    net_delta = plot_df["wow_change_net"]
-    bar_colors = ["#2ecc71" if val >= 0 else "#e74c3c" for val in net_delta]
-    fig.add_trace(go.Bar(
-        x=plot_df["report_date"], 
-        y=net_delta, 
-        name="Чистая Дельта", 
-        marker_color=bar_colors, 
-        marker_line_width=0, 
-        hovertemplate="Дата: %{x}<br>Дельта: %{y:+.0f} контр.<extra></extra>"
-    ), row=4, col=1)
-    fig.add_hline(y=0.0, line_color="rgba(255, 255, 255, 0.3)", row=4, col=1)
-    
-    fig.update_layout(
-        height=chart_height, 
-        template="plotly_dark", 
-        showlegend=True, 
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), 
-        margin=dict(l=20, r=20, t=30, b=20), 
-        hovermode="x unified", 
-        paper_bgcolor="rgba(0,0,0,0)", 
-        plot_bgcolor="rgba(0,0,0,0)", 
-        hoverlabel=dict(bgcolor="#08090a", font_size=12, font_family="Inter")
-    )
-    
-    for r in [1, 2, 3, 4]:
-        fig.update_xaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
-        fig.update_yaxes(showgrid=True, gridcolor="#15181f", row=r, col=1)
-        
-    fig.update_yaxes(title_text="Цена", row=1, col=1)
-    fig.update_yaxes(title_text="Лонг Поток", row=2, col=1)
-    fig.update_yaxes(title_text="Шорт Поток", row=3, col=1)
-    fig.update_yaxes(title_text="Чистая Дельта", row=4, col=1)
-    
-    return fig# --- Sidebar ---
+    from src.tv_charts import render_tv_flows_chart
+    return render_tv_flows_chart(plot_df, market_name)# --- Sidebar ---
 st.sidebar.title("⚡ Терминал Кот")
 
 app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "🤖 Бумажный бот & Бэктесты", "📖 Паспорт Терминала"])
@@ -699,9 +562,9 @@ if app_mode == "📈 Интерактивный Дашборд":
                 try:
                     df_walcl = pd.read_csv(os.path.join(DATA_DIR_MACRO, "WALCL.csv"))
                     df_walcl['date'] = pd.to_datetime(df_walcl['date'])
-                    fig_walcl = go.Figure(go.Scatter(x=df_walcl['date'], y=df_walcl['value'], line=dict(color='#2ecc71', width=2), fill='tozeroy'))
-                    fig_walcl.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                    st.plotly_chart(fig_walcl, use_container_width=True)
+                    from src.tv_charts import render_tv_macro_chart
+                    tv_walcl = render_tv_macro_chart(df_walcl, 'date', 'value', '#2ecc71', 'WALCL', 300)
+                    st.components.v1.html(tv_walcl, height=300)
                 except:
                     st.warning("График WALCL недоступен. Нажмите 'Обновить Макро-Данные' на вкладке Макро.")
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('WALCL', 'Нет комментария')}</div>", unsafe_allow_html=True)
@@ -711,9 +574,9 @@ if app_mode == "📈 Интерактивный Дашборд":
                 try:
                     df_m2 = pd.read_csv(os.path.join(DATA_DIR_MACRO, "M2SL.csv"))
                     df_m2['date'] = pd.to_datetime(df_m2['date'])
-                    fig_m2 = go.Figure(go.Scatter(x=df_m2['date'], y=df_m2['value'], line=dict(color='#3498db', width=2), fill='tozeroy'))
-                    fig_m2.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                    st.plotly_chart(fig_m2, use_container_width=True)
+                    from src.tv_charts import render_tv_macro_chart
+                    tv_m2 = render_tv_macro_chart(df_m2, 'date', 'value', '#3498db', 'M2SL', 300)
+                    st.components.v1.html(tv_m2, height=300)
                 except:
                     st.warning("График M2 недоступен.")
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('M2SL', 'Нет комментария')}</div>", unsafe_allow_html=True)
@@ -728,10 +591,9 @@ if app_mode == "📈 Интерактивный Дашборд":
                     merged_yields = pd.merge(df_10y, df_2y, on='date', suffixes=('_10y', '_2y'))
                     merged_yields['spread'] = merged_yields['value_10y'] - merged_yields['value_2y']
                     
-                    fig_yield = go.Figure(go.Scatter(x=merged_yields['date'], y=merged_yields['spread'], line=dict(color='#e74c3c', width=2), fill='tozeroy'))
-                    fig_yield.add_hline(y=0, line_dash="dash", line_color="white")
-                    fig_yield.update_layout(template="plotly_dark", height=300, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                    st.plotly_chart(fig_yield, use_container_width=True)
+                    from src.tv_charts import render_tv_macro_chart
+                    tv_yield = render_tv_macro_chart(merged_yields, 'date', 'spread', '#e74c3c', '10Y-2Y Spread', 300)
+                    st.components.v1.html(tv_yield, height=300)
                 except:
                     st.warning("График ставок недоступен.")
                 st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('RATES', 'Нет комментария')}</div>", unsafe_allow_html=True)
@@ -745,14 +607,14 @@ if app_mode == "📈 Интерактивный Дашборд":
                             df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
                             if not df_am.empty:
                                 st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
-                                fig_am = draw_cot_chart(df_am.tail(52), asset, "Asset Manager")
-                                st.plotly_chart(fig_am, use_container_width=True)
+                                html_am = draw_cot_chart(df_am.tail(52), asset, "Asset Manager")
+                                st.components.v1.html(html_am, height=650)
                                 
                             df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
                             if not df_lf.empty:
                                 st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
-                                fig_lf = draw_cot_chart(df_lf.tail(52), asset, "Leveraged Funds")
-                                st.plotly_chart(fig_lf, use_container_width=True)
+                                html_lf = draw_cot_chart(df_lf.tail(52), asset, "Leveraged Funds")
+                                st.components.v1.html(html_lf, height=650)
 
                         except:
                             pass
@@ -992,37 +854,9 @@ elif app_mode == "🌊 BTC GEX Трекер":
     with st.spinner("Загрузка истории котировок BTC..."):
         df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval="1h")
         
-    fig_gex = make_subplots(
-        rows=1, cols=2, 
-        shared_yaxes=True, 
-        column_widths=[0.85, 0.15],
-        horizontal_spacing=0.01,
-        subplot_titles=(f"Цена BTC ({selected_window})", "GEX Профиль")
-    )
+    fig_profile = go.Figure()
     
-    # 1. Price History Candlestick Chart (Col 1)
-    if not df_hist.empty:
-        fig_gex.add_trace(
-            go.Candlestick(
-                x=df_hist["datetime"],
-                open=df_hist["open"],
-                high=df_hist["high"],
-                low=df_hist["low"],
-                close=df_hist["close"],
-                name="Цена BTC",
-                increasing_line_color="#10b981",
-                decreasing_line_color="#ef4444",
-                hoverinfo="all"
-            ),
-            row=1, col=1
-        )
-        x_min = df_hist["datetime"].min()
-        x_max = df_hist["datetime"].max()
-    else:
-        x_min = datetime.now() - timedelta(days=7)
-        x_max = datetime.now()
-        
-    # 2. GEX Profile Bar (Col 2)
+    # GEX Profile Bar
     strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
     # Focus range +/- 15% of spot
     filtered_strike_gex = strike_gex[
@@ -1036,7 +870,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
     colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
     borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
     
-    fig_gex.add_trace(
+    fig_profile.add_trace(
         go.Bar(
             x=filtered_strike_gex["gex"],
             y=filtered_strike_gex["strike"],
@@ -1047,126 +881,47 @@ elif app_mode == "🌊 BTC GEX Трекер":
             ),
             name="Gamma Exposure",
             hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
-        ),
-        row=1, col=2
+        )
     )
-    
-    # 3. Add Colored GEX Level Bands (Green for Resist, Red for Trigger, Purple for Magnet, Pink for Flip)
-    if p1 and p2:
-        fig_gex.add_shape(
-            type="rect",
-            x0=x_min, x1=x_max,
-            y0=min(p1, p2), y1=max(p1, p2),
-            fillcolor="rgba(16, 185, 129, 0.08)",
-            line=dict(width=0),
-            layer="below",
-            row=1, col=1
-        )
-    if n1 and n2:
-        fig_gex.add_shape(
-            type="rect",
-            x0=x_min, x1=x_max,
-            y0=min(n1, n2), y1=max(n1, n2),
-            fillcolor="rgba(239, 68, 68, 0.08)",
-            line=dict(width=0),
-            layer="below",
-            row=1, col=1
-        )
-    if a1 and a2:
-        fig_gex.add_shape(
-            type="rect",
-            x0=x_min, x1=x_max,
-            y0=min(a1, a2), y1=max(a1, a2),
-            fillcolor="rgba(139, 92, 246, 0.05)",
-            line=dict(width=0),
-            layer="below",
-            row=1, col=1
-        )
-    if flip_price:
-        fig_gex.add_shape(
-            type="rect",
-            x0=x_min, x1=x_max,
-            y0=flip_price - 150, y1=flip_price + 150,
-            fillcolor="rgba(236, 72, 153, 0.08)",
-            line=dict(width=0),
-            layer="below",
-            row=1, col=1
-        )
-
-    # 4. Add Horizontal Levels to Column 1 (Price) with staggered labels for overlaps
-    levels_to_draw = []
-    if p2: levels_to_draw.append((p2, "P2", "#10b981", "Gamma Resist 2"))
-    if p1: levels_to_draw.append((p1, "P1", "#10b981", "Gamma Resist 1"))
-    if a2: levels_to_draw.append((a2, "A2", "#8b5cf6", "Magnet 2"))
-    if a1: levels_to_draw.append((a1, "A1", "#8b5cf6", "Magnet 1"))
-    if flip_price: levels_to_draw.append((flip_price, "Г", "#ec4899", "Gamma Flip"))
-    if n1: levels_to_draw.append((n1, "N1", "#ef4444", "Vol Trigger 1"))
-    if n2: levels_to_draw.append((n2, "N2", "#ef4444", "Vol Trigger 2"))
-    if v_level: levels_to_draw.append((v_level, "V", "#f97316", "Max Volatility"))
-    if s_level: levels_to_draw.append((s_level, "S", "#10b981", "Max Stability"))
-    
-    levels_to_draw = sorted([x for x in levels_to_draw if x[0] is not None], key=lambda x: x[0])
-    
-    strike_counts = {}
-    for val, name, color, desc in levels_to_draw:
-        if spot_price * 0.85 <= val <= spot_price * 1.15:
-            fig_gex.add_shape(
-                type="line",
-                x0=x_min, x1=x_max,
-                y0=val, y1=val,
-                line=dict(color=color, width=1.5, dash="dash"),
-                row=1, col=1
-            )
-            
-            rounded_strike = int(round(val))
-            count = strike_counts.get(rounded_strike, 0)
-            strike_counts[rounded_strike] = count + 1
-            
-            offset_hours = count * 18
-            label_x = x_max - timedelta(hours=offset_hours)
-            
-            fig_gex.add_annotation(
-                x=label_x,
-                y=val,
-                text=f"<b>{name}</b> {val:,.0f}",
-                showarrow=False,
-                xanchor="right" if count > 0 else "left",
-                yanchor="middle",
-                font=dict(color="#ffffff", size=9, family="SF Mono, Courier New, monospace"),
-                bgcolor=color,
-                bordercolor=color,
-                borderwidth=1,
-                borderpad=2,
-                row=1, col=1
-            )
-            
-    fig_gex.update_layout(
+    fig_profile.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#94a3b8", size=12),
-        margin=dict(l=0, r=60, t=30, b=0),
+        font=dict(family="Inter, sans-serif", color="#94a3b8", size=10),
+        margin=dict(l=0, r=10, t=30, b=0),
         height=600,
         showlegend=False,
-        xaxis_rangeslider_visible=False,
         yaxis=dict(
-            title="Цена BTC / Страйк ($)",
+            title="Страйк ($)",
             gridcolor="rgba(255,255,255,0.05)",
             zerolinecolor="rgba(255,255,255,0.05)",
             tickformat="$,.0f",
             range=[spot_price * 0.85, spot_price * 1.15]
         ),
         xaxis=dict(
-            title="Дата/Время",
-            gridcolor="rgba(255,255,255,0.05)",
-            zerolinecolor="rgba(255,255,255,0.05)"
-        ),
-        xaxis2=dict(
-            title="GEX ($ / 1%)",
+            title="GEX ($/1%)",
             gridcolor="rgba(255,255,255,0.05)",
             zerolinecolor="rgba(255,255,255,0.05)"
         )
     )
-    st.plotly_chart(fig_gex, use_container_width=True)
+
+    levels_data = []
+    if v_level: levels_data.append({'price': float(v_level), 'title': 'V (Limit Volat.)', 'color': '#f97316'})
+    if n2: levels_data.append({'price': float(n2), 'title': 'N2 (Vol Trigger 2)', 'color': '#ef4444'})
+    if n1: levels_data.append({'price': float(n1), 'title': 'N1 (Vol Trigger 1)', 'color': '#ef4444'})
+    if a1: levels_data.append({'price': float(a1), 'title': 'A1 (Magnet 1)', 'color': '#8b5cf6'})
+    if flip_price: levels_data.append({'price': float(flip_price), 'title': 'Г (Gamma Flip)', 'color': '#ec4899'})
+    if a2: levels_data.append({'price': float(a2), 'title': 'A2 (Magnet 2)', 'color': '#8b5cf6'})
+    if p1: levels_data.append({'price': float(p1), 'title': 'P1 (Resist 1)', 'color': '#10b981'})
+    if p2: levels_data.append({'price': float(p2), 'title': 'P2 (Resist 2)', 'color': '#10b981'})
+    if s_level: levels_data.append({'price': float(s_level), 'title': 'S (Limit Stab.)', 'color': '#10b981'})
+
+    col_chart, col_profile = st.columns([0.83, 0.17])
+    with col_chart:
+        from src.tv_charts import render_tv_gex_chart
+        tv_html = render_tv_gex_chart(df_hist, levels_data, spot_price)
+        st.components.v1.html(tv_html, height=600)
+    with col_profile:
+        st.plotly_chart(fig_profile, use_container_width=True)
     
     # Top-20 Table
     st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
@@ -1572,15 +1327,15 @@ else:
     else:
         plot_df = df.copy()
         
-    # Rebuild Plotly chart using the helper function
-    fig = draw_cot_chart(plot_df, selected_market, tff_participant, chart_height=650)
-    st.plotly_chart(fig, use_container_width=True)
+    # Rebuild chart using TradingView Lightweight Charts
+    html_content = draw_cot_chart(plot_df, selected_market, tff_participant, chart_height=650)
+    st.components.v1.html(html_content, height=650)
 
 
     
     st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")
-    fig2 = draw_flows_chart(plot_df, selected_market, chart_height=750)
-    st.plotly_chart(fig2, use_container_width=True)
+    html_content2 = draw_flows_chart(plot_df, selected_market, chart_height=750)
+    st.components.v1.html(html_content2, height=750)
     
     # 3. Simplified Historical HTML Table
     table_html = generate_minimal_html_table(df, selected_market, selected_display.split(" (")[0])
