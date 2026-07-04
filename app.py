@@ -800,15 +800,18 @@ elif app_mode == "🌊 BTC GEX Трекер":
             dt=("expiry_dt", "first")
         ).reset_index().dropna(subset=["dt"]).sort_values("dt")["expiry_str"].tolist()
 
-        selected_expiry = st.sidebar.selectbox(
-            "Выберите экспирацию:",
-            ["Все экспирации (TOTAL)"] + exp_dates,
-            index=0
-        )
-
-        st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
-        if st.sidebar.button("🔄 Обновить данные GEX", use_container_width=True):
-            st.rerun()
+        col_sel1, col_sel2 = st.columns([0.3, 0.7])
+        with col_sel1:
+            selected_expiry = st.selectbox(
+                "Выберите экспирацию:",
+                ["Все экспирации (TOTAL)"] + exp_dates,
+                index=0,
+                key="gex_expiry_select"
+            )
+        with col_sel2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True) # alignment spacer
+            if st.button("🔄 Обновить данные GEX", use_container_width=False, key="gex_refresh_btn"):
+                st.rerun()
 
         # Filter raw dataframe by selected expiry
         if selected_expiry != "Все экспирации (TOTAL)":
