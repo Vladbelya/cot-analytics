@@ -2,7 +2,7 @@ import json
 import pandas as pd
 from src.config import MARKETS
 
-def render_tv_gex_chart(df_hist, levels_data, spot_price):
+def render_tv_gex_chart(df_hist, levels_data, spot_price, zones_data=None):
     if df_hist.empty:
         return "<div style='color: white; text-align: center; padding: 20px;'>Нет исторических данных для графика</div>"
     
@@ -28,6 +28,17 @@ def render_tv_gex_chart(df_hist, levels_data, spot_price):
             filtered_levels.append(lvl)
             
     levels_json = json.dumps(filtered_levels)
+
+    # Process zones
+    if zones_data is None:
+        zones_data = []
+    filtered_zones = []
+    for zone in zones_data:
+        low = spot_price * 0.85
+        high = spot_price * 1.15
+        if not (zone['max_price'] < low or zone['min_price'] > high):
+            filtered_zones.append(zone)
+    zones_json = json.dumps(filtered_zones)
     
     html = f"""
     <!DOCTYPE html>
@@ -87,8 +98,48 @@ def render_tv_gex_chart(df_hist, levels_data, spot_price):
         </div>
         <div id="chart-container"></div>
         <script>
+            // Custom Primitive to draw horizontal zones/bands
+            class HorizontalZonePrimitive {{
+                constructor(minPrice, maxPrice, color) {{
+                    this.minPrice = minPrice;
+                    this.maxPrice = maxPrice;
+                    this.color = color;
+                    this.y1 = null;
+                    this.y2 = null;
+                    this._paneViews = [{{
+                        renderer: () => {{
+                            return {{
+                                draw: (target) => {{
+                                    if (this.y1 === null || this.y2 === null) return;
+                                    target.useBitmapCoordinateSpace(scope => {{
+                                        const ctx = scope.context;
+                                        const yTop = Math.min(this.y1, this.y2) * scope.verticalPixelRatio;
+                                        const yBottom = Math.max(this.y1, this.y2) * scope.verticalPixelRatio;
+                                        const width = scope.bitmapSize.width;
+                                        ctx.fillStyle = this.color;
+                                        ctx.fillRect(0, yTop, width, yBottom - yTop);
+                                    }});
+                                }}
+                            }};
+                        }}
+                    }}];
+                }}
+                attached(params) {{
+                    this.series = params.series;
+                }}
+                paneViews() {{
+                    return this._paneViews;
+                }}
+                updateAllViews() {{
+                    if (!this.series) return;
+                    this.y1 = this.series.priceToCoordinate(this.minPrice);
+                    this.y2 = this.series.priceToCoordinate(this.maxPrice);
+                }}
+            }}
+
             const chartData = {chart_data_json};
             const levels = {levels_json};
+            const zones = {zones_json};
             
             const container = document.getElementById('chart-container');
             const chart = LightweightCharts.createChart(container, {{
@@ -142,6 +193,12 @@ def render_tv_gex_chart(df_hist, levels_data, spot_price):
             }});
             
             candleSeries.setData(chartData);
+            
+            // Draw zones
+            zones.forEach(zone => {{
+                const zonePrimitive = new HorizontalZonePrimitive(zone.min_price, zone.max_price, zone.color);
+                candleSeries.attachPrimitive(zonePrimitive);
+            }});
             
             // Draw levels
             levels.forEach(level => {{

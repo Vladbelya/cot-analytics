@@ -915,10 +915,21 @@ elif app_mode == "🌊 BTC GEX Трекер":
     if p2: levels_data.append({'price': float(p2), 'title': 'P2 (Resist 2)', 'color': '#10b981'})
     if s_level: levels_data.append({'price': float(s_level), 'title': 'S (Limit Stab.)', 'color': '#10b981'})
 
+    # Zones data for background coloring
+    zones_data = []
+    if p1 and p2:
+        zones_data.append({'min_price': float(min(p1, p2)), 'max_price': float(max(p1, p2)), 'color': 'rgba(16, 185, 129, 0.08)'})
+    if n1 and n2:
+        zones_data.append({'min_price': float(min(n1, n2)), 'max_price': float(max(n1, n2)), 'color': 'rgba(239, 68, 68, 0.08)'})
+    if a1 and a2:
+        zones_data.append({'min_price': float(min(a1, a2)), 'max_price': float(max(a1, a2)), 'color': 'rgba(139, 92, 246, 0.05)'})
+    if flip_price:
+        zones_data.append({'min_price': float(flip_price - 150), 'max_price': float(flip_price + 150), 'color': 'rgba(236, 72, 153, 0.08)'})
+
     col_chart, col_profile = st.columns([0.83, 0.17])
     with col_chart:
         from src.tv_charts import render_tv_gex_chart
-        tv_html = render_tv_gex_chart(df_hist, levels_data, spot_price)
+        tv_html = render_tv_gex_chart(df_hist, levels_data, spot_price, zones_data)
         st.components.v1.html(tv_html, height=600)
     with col_profile:
         st.plotly_chart(fig_profile, use_container_width=True)
