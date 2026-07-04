@@ -784,232 +784,235 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
     
-    # Fetch all live options data first to get the list of expirations
-    with st.spinner("Сбор опционных данных и расчет GEX..."):
-        from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
-        gex_df_raw, spot_price = get_aggregate_gex_data(selected_exchange)
-        
-    if gex_df_raw.empty:
-        st.error("Не удалось получить данные опционов. Пожалуйста, попробуйте позже.")
-        st.stop()
-        
-    # Get sorted unique expiration dates
-    exp_dates = gex_df_raw.groupby("expiry_str").agg(
-        dt=("expiry_dt", "first")
-    ).reset_index().dropna(subset=["dt"]).sort_values("dt")["expiry_str"].tolist()
-    
-    selected_expiry = st.sidebar.selectbox(
-        "Выберите экспирацию:",
-        ["Все экспирации (TOTAL)"] + exp_dates,
-        index=0
-    )
-    
-    st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
-    if st.sidebar.button("🔄 Обновить данные GEX", use_container_width=True):
-        st.rerun()
-    
-    # Filter raw dataframe by selected expiry
-    if selected_expiry != "Все экспирации (TOTAL)":
-        gex_df = gex_df_raw[gex_df_raw["expiry_str"] == selected_expiry].copy()
-    else:
-        gex_df = gex_df_raw.copy()
-        
-    # Calculate GEX metrics for the filtered data
-    metrics = calculate_gex_metrics(gex_df, spot_price)
-    
-    # Spot price header
-    st.markdown(f"""
-    <div class='metrics-header'>
-        <span style='color: #94a3b8; font-size: 1.1em;'>Текущий спот BTC:</span>
-        <span style='font-size: 2em; font-weight: 700; color: #ffffff; margin-left: 10px;'>${spot_price:,.2f}</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Metrics Row
-    g_flip = metrics.get("gamma_flip")
-    c_wall = metrics.get("call_wall")
-    p_wall = metrics.get("put_wall")
-    net_g = metrics.get("total_gex", 0.0) / 1e6
-    
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-        st.metric("Суммарный Net GEX", f"{net_g:+.1f}M USD/1%", delta="Хеджирование дилеров")
-    with col_m2:
-        st.metric("Точка Gamma Flip", f"${g_flip:,.0f}" if g_flip else "Н/Д")
-    with col_m3:
-        st.metric("Call Wall (Сопротивление)", f"${c_wall:,.0f}" if c_wall else "Н/Д")
-    with col_m4:
-        st.metric("Put Wall (Поддержка)", f"${p_wall:,.0f}" if p_wall else "Н/Д")
-        
-    # Badges Row
-    p1 = metrics.get("p1")
-    p2 = metrics.get("p2")
-    n1 = metrics.get("n1")
-    n2 = metrics.get("n2")
-    a1 = metrics.get("a1")
-    a2 = metrics.get("a2")
-    v_level = metrics.get("v")
-    s_level = metrics.get("s")
-    flip_price = metrics.get("gamma_flip")
-    
-    def get_strike_gex_m(strike):
-        if strike is None: return 0.0
-        val = gex_df[gex_df["strike"] == strike]["gex"].sum()
-        return val / 1e6
-        
-    def format_badge_html(name, strike, gex_m=None, color="#3498db", subtitle=""):
-        if strike is None:
-            return ""
-        gex_str = f" ({gex_m:+.1f}M)" if gex_m is not None else ""
-        return f"""<div style="background: #1e293b; border-left: 4px solid {color}; padding: 8px 12px; border-radius: 4px; min-width: 135px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div style="font-size: 0.75em; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">{name} {subtitle}</div><div style="font-size: 1.15em; font-weight: 700; color: #ffffff; margin: 2px 0;">${strike:,.0f}</div><div style="font-size: 0.75em; color: {color}; font-weight: 600;">{gex_str}</div></div>"""
-        
-    badges_html = []
-    badges_html.append(format_badge_html("V", v_level, color="#f97316", subtitle="Лимит Волат."))
-    badges_html.append(format_badge_html("N2", n2, get_strike_gex_m(n2), color="#ef4444", subtitle="Триггер Волат. 2"))
-    badges_html.append(format_badge_html("N1", n1, get_strike_gex_m(n1), color="#ef4444", subtitle="Триггер Волат. 1"))
-    badges_html.append(format_badge_html("A1", a1, get_strike_gex_m(a1), color="#8b5cf6", subtitle="Магнит Цены 1"))
-    badges_html.append(format_badge_html("Flip Г", flip_price, 0.0, color="#ec4899", subtitle="Нейтраль"))
-    badges_html.append(format_badge_html("A2", a2, get_strike_gex_m(a2), color="#8b5cf6", subtitle="Магнит Цены 2"))
-    badges_html.append(format_badge_html("P1", p1, get_strike_gex_m(p1), color="#10b981", subtitle="Сопротивление 1"))
-    badges_html.append(format_badge_html("P2", p2, get_strike_gex_m(p2), color="#10b981", subtitle="Сопротивление 2"))
-    badges_html.append(format_badge_html("S", s_level, color="#10b981", subtitle="Лимит Стабильн."))
-    
-    full_badges_html = f"""<div style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 25px;">
-{"".join(badges_html)}
-</div>"""
-    
-    st.markdown(full_badges_html, unsafe_allow_html=True)
-    
-    # GEX Profile & Price History Subplot Chart
-    st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
-    st.caption(f"Слева: Свечной график цены BTC за последние {selected_window} с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
-    
-    with st.spinner("Загрузка истории котировок BTC..."):
-        df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval="1h")
-        
-    fig_profile = go.Figure()
-    
-    # GEX Profile Bar
-    strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
-    # Focus range +/- 15% of spot
-    filtered_strike_gex = strike_gex[
-        (strike_gex["strike"] >= spot_price * 0.85) & 
-        (strike_gex["strike"] <= spot_price * 1.15)
-    ].copy()
-    
-    if filtered_strike_gex.empty:
-        filtered_strike_gex = strike_gex.copy()
-        
-    colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
-    borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
-    
-    fig_profile.add_trace(
-        go.Bar(
-            x=filtered_strike_gex["gex"],
-            y=filtered_strike_gex["strike"],
-            orientation="h",
-            marker=dict(
-                color=colors,
-                line=dict(color=borders, width=1.5)
+    @st.fragment(run_every=60)
+    def render_gex_tracker_fragment(selected_exchange, hours_to_load, selected_window):
+        # Fetch all live options data first to get the list of expirations
+        with st.spinner("Сбор опционных данных и расчет GEX..."):
+            from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
+            gex_df_raw, spot_price = get_aggregate_gex_data(selected_exchange)
+
+        if gex_df_raw.empty:
+            st.error("Не удалось получить данные опционов. Пожалуйста, попробуйте позже.")
+            st.stop()
+
+        # Get sorted unique expiration dates
+        exp_dates = gex_df_raw.groupby("expiry_str").agg(
+            dt=("expiry_dt", "first")
+        ).reset_index().dropna(subset=["dt"]).sort_values("dt")["expiry_str"].tolist()
+
+        selected_expiry = st.sidebar.selectbox(
+            "Выберите экспирацию:",
+            ["Все экспирации (TOTAL)"] + exp_dates,
+            index=0
+        )
+
+        st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+        if st.sidebar.button("🔄 Обновить данные GEX", use_container_width=True):
+            st.rerun()
+
+        # Filter raw dataframe by selected expiry
+        if selected_expiry != "Все экспирации (TOTAL)":
+            gex_df = gex_df_raw[gex_df_raw["expiry_str"] == selected_expiry].copy()
+        else:
+            gex_df = gex_df_raw.copy()
+
+        # Calculate GEX metrics for the filtered data
+        metrics = calculate_gex_metrics(gex_df, spot_price)
+
+        # Spot price header
+        st.markdown(f"""
+        <div class='metrics-header'>
+            <span style='color: #94a3b8; font-size: 1.1em;'>Текущий спот BTC:</span>
+            <span style='font-size: 2em; font-weight: 700; color: #ffffff; margin-left: 10px;'>${spot_price:,.2f}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Metrics Row
+        g_flip = metrics.get("gamma_flip")
+        c_wall = metrics.get("call_wall")
+        p_wall = metrics.get("put_wall")
+        net_g = metrics.get("total_gex", 0.0) / 1e6
+
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("Суммарный Net GEX", f"{net_g:+.1f}M USD/1%", delta="Хеджирование дилеров")
+        with col_m2:
+            st.metric("Точка Gamma Flip", f"${g_flip:,.0f}" if g_flip else "Н/Д")
+        with col_m3:
+            st.metric("Call Wall (Сопротивление)", f"${c_wall:,.0f}" if c_wall else "Н/Д")
+        with col_m4:
+            st.metric("Put Wall (Поддержка)", f"${p_wall:,.0f}" if p_wall else "Н/Д")
+
+        # Badges Row
+        p1 = metrics.get("p1")
+        p2 = metrics.get("p2")
+        n1 = metrics.get("n1")
+        n2 = metrics.get("n2")
+        a1 = metrics.get("a1")
+        a2 = metrics.get("a2")
+        v_level = metrics.get("v")
+        s_level = metrics.get("s")
+        flip_price = metrics.get("gamma_flip")
+
+        def get_strike_gex_m(strike):
+            if strike is None: return 0.0
+            val = gex_df[gex_df["strike"] == strike]["gex"].sum()
+            return val / 1e6
+
+        def format_badge_html(name, strike, gex_m=None, color="#3498db", subtitle=""):
+            if strike is None:
+                return ""
+            gex_str = f" ({gex_m:+.1f}M)" if gex_m is not None else ""
+            return f"""<div style="background: #1e293b; border-left: 4px solid {color}; padding: 8px 12px; border-radius: 4px; min-width: 135px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><div style="font-size: 0.75em; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">{name} {subtitle}</div><div style="font-size: 1.15em; font-weight: 700; color: #ffffff; margin: 2px 0;">${strike:,.0f}</div><div style="font-size: 0.75em; color: {color}; font-weight: 600;">{gex_str}</div></div>"""
+
+        badges_html = []
+        badges_html.append(format_badge_html("V", v_level, color="#f97316", subtitle="Лимит Волат."))
+        badges_html.append(format_badge_html("N2", n2, get_strike_gex_m(n2), color="#ef4444", subtitle="Триггер Волат. 2"))
+        badges_html.append(format_badge_html("N1", n1, get_strike_gex_m(n1), color="#ef4444", subtitle="Триггер Волат. 1"))
+        badges_html.append(format_badge_html("A1", a1, get_strike_gex_m(a1), color="#8b5cf6", subtitle="Магнит Цены 1"))
+        badges_html.append(format_badge_html("Flip Г", flip_price, 0.0, color="#ec4899", subtitle="Нейтраль"))
+        badges_html.append(format_badge_html("A2", a2, get_strike_gex_m(a2), color="#8b5cf6", subtitle="Магнит Цены 2"))
+        badges_html.append(format_badge_html("P1", p1, get_strike_gex_m(p1), color="#10b981", subtitle="Сопротивление 1"))
+        badges_html.append(format_badge_html("P2", p2, get_strike_gex_m(p2), color="#10b981", subtitle="Сопротивление 2"))
+        badges_html.append(format_badge_html("S", s_level, color="#10b981", subtitle="Лимит Стабильн."))
+
+        full_badges_html = f"""<div style="display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 25px;">
+    {"".join(badges_html)}
+    </div>"""
+
+        st.markdown(full_badges_html, unsafe_allow_html=True)
+
+        # GEX Profile & Price History Subplot Chart
+        st.markdown("### 📊 Интерактивная карта цен и Гамма-уровней (GEX Profile)")
+        st.caption(f"Слева: Свечной график цены BTC за последние {selected_window} с наложением ключевых гамма-уровней поддержки/сопротивления. Справа: Распределение экспозиции (GEX) дилеров по страйкам.")
+
+        with st.spinner("Загрузка истории котировок BTC..."):
+            df_hist = fetch_btc_price_history_binance(limit=hours_to_load, interval="1h")
+
+        fig_profile = go.Figure()
+
+        # GEX Profile Bar
+        strike_gex = gex_df.groupby("strike")["gex"].sum().reset_index()
+        # Focus range +/- 15% of spot
+        filtered_strike_gex = strike_gex[
+            (strike_gex["strike"] >= spot_price * 0.85) & 
+            (strike_gex["strike"] <= spot_price * 1.15)
+        ].copy()
+
+        if filtered_strike_gex.empty:
+            filtered_strike_gex = strike_gex.copy()
+
+        colors = np.where(filtered_strike_gex["gex"] >= 0, "rgba(16, 185, 129, 0.7)", "rgba(239, 68, 68, 0.7)")
+        borders = np.where(filtered_strike_gex["gex"] >= 0, "#10b981", "#ef4444")
+
+        fig_profile.add_trace(
+            go.Bar(
+                x=filtered_strike_gex["gex"],
+                y=filtered_strike_gex["strike"],
+                orientation="h",
+                marker=dict(
+                    color=colors,
+                    line=dict(color=borders, width=1.5)
+                ),
+                name="Gamma Exposure",
+                hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
+            )
+        )
+        fig_profile.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Inter, sans-serif", color="#94a3b8", size=10),
+            margin=dict(l=0, r=10, t=30, b=0),
+            height=600,
+            showlegend=False,
+            yaxis=dict(
+                title="Страйк ($)",
+                gridcolor="rgba(255,255,255,0.05)",
+                zerolinecolor="rgba(255,255,255,0.05)",
+                tickformat="$,.0f",
+                range=[spot_price * 0.85, spot_price * 1.15]
             ),
-            name="Gamma Exposure",
-            hovertemplate="<b>Страйк:</b> $%{y:,.0f}<br><b>GEX:</b> $%{x:,.2f}<extra></extra>"
+            xaxis=dict(
+                title="GEX ($/1%)",
+                gridcolor="rgba(255,255,255,0.05)",
+                zerolinecolor="rgba(255,255,255,0.05)"
+            )
         )
-    )
-    fig_profile.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif", color="#94a3b8", size=10),
-        margin=dict(l=0, r=10, t=30, b=0),
-        height=600,
-        showlegend=False,
-        yaxis=dict(
-            title="Страйк ($)",
-            gridcolor="rgba(255,255,255,0.05)",
-            zerolinecolor="rgba(255,255,255,0.05)",
-            tickformat="$,.0f",
-            range=[spot_price * 0.85, spot_price * 1.15]
-        ),
-        xaxis=dict(
-            title="GEX ($/1%)",
-            gridcolor="rgba(255,255,255,0.05)",
-            zerolinecolor="rgba(255,255,255,0.05)"
-        )
-    )
 
-    levels_data = []
-    if v_level: levels_data.append({'price': float(v_level), 'title': 'V (Limit Volat.)', 'color': '#f97316'})
-    if n2: levels_data.append({'price': float(n2), 'title': 'N2 (Vol Trigger 2)', 'color': '#ef4444'})
-    if n1: levels_data.append({'price': float(n1), 'title': 'N1 (Vol Trigger 1)', 'color': '#ef4444'})
-    if a1: levels_data.append({'price': float(a1), 'title': 'A1 (Magnet 1)', 'color': '#8b5cf6'})
-    if flip_price: levels_data.append({'price': float(flip_price), 'title': 'Г (Gamma Flip)', 'color': '#ec4899'})
-    if a2: levels_data.append({'price': float(a2), 'title': 'A2 (Magnet 2)', 'color': '#8b5cf6'})
-    if p1: levels_data.append({'price': float(p1), 'title': 'P1 (Resist 1)', 'color': '#10b981'})
-    if p2: levels_data.append({'price': float(p2), 'title': 'P2 (Resist 2)', 'color': '#10b981'})
-    if s_level: levels_data.append({'price': float(s_level), 'title': 'S (Limit Stab.)', 'color': '#10b981'})
+        levels_data = []
+        if v_level: levels_data.append({'price': float(v_level), 'title': 'V (Limit Volat.)', 'color': '#f97316'})
+        if n2: levels_data.append({'price': float(n2), 'title': 'N2 (Vol Trigger 2)', 'color': '#ef4444'})
+        if n1: levels_data.append({'price': float(n1), 'title': 'N1 (Vol Trigger 1)', 'color': '#ef4444'})
+        if a1: levels_data.append({'price': float(a1), 'title': 'A1 (Magnet 1)', 'color': '#8b5cf6'})
+        if flip_price: levels_data.append({'price': float(flip_price), 'title': 'Г (Gamma Flip)', 'color': '#ec4899'})
+        if a2: levels_data.append({'price': float(a2), 'title': 'A2 (Magnet 2)', 'color': '#8b5cf6'})
+        if p1: levels_data.append({'price': float(p1), 'title': 'P1 (Resist 1)', 'color': '#10b981'})
+        if p2: levels_data.append({'price': float(p2), 'title': 'P2 (Resist 2)', 'color': '#10b981'})
+        if s_level: levels_data.append({'price': float(s_level), 'title': 'S (Limit Stab.)', 'color': '#10b981'})
 
-    # Zones data for background coloring
-    zones_data = []
-    if p1 and p2:
-        zones_data.append({'min_price': float(min(p1, p2)), 'max_price': float(max(p1, p2)), 'color': 'rgba(16, 185, 129, 0.08)'})
-    if n1 and n2:
-        zones_data.append({'min_price': float(min(n1, n2)), 'max_price': float(max(n1, n2)), 'color': 'rgba(239, 68, 68, 0.08)'})
-    if a1 and a2:
-        zones_data.append({'min_price': float(min(a1, a2)), 'max_price': float(max(a1, a2)), 'color': 'rgba(139, 92, 246, 0.05)'})
-    if flip_price:
-        zones_data.append({'min_price': float(flip_price - 150), 'max_price': float(flip_price + 150), 'color': 'rgba(236, 72, 153, 0.08)'})
+        # Zones data for background coloring
+        zones_data = []
+        if p1 and p2:
+            zones_data.append({'min_price': float(min(p1, p2)), 'max_price': float(max(p1, p2)), 'color': 'rgba(16, 185, 129, 0.08)'})
+        if n1 and n2:
+            zones_data.append({'min_price': float(min(n1, n2)), 'max_price': float(max(n1, n2)), 'color': 'rgba(239, 68, 68, 0.08)'})
+        if a1 and a2:
+            zones_data.append({'min_price': float(min(a1, a2)), 'max_price': float(max(a1, a2)), 'color': 'rgba(139, 92, 246, 0.05)'})
+        if flip_price:
+            zones_data.append({'min_price': float(flip_price - 150), 'max_price': float(flip_price + 150), 'color': 'rgba(236, 72, 153, 0.08)'})
 
-    col_chart, col_profile = st.columns([0.83, 0.17])
-    with col_chart:
-        from src.tv_charts import render_tv_gex_chart
-        tv_html = render_tv_gex_chart(df_hist, levels_data, spot_price, zones_data)
-        st.components.v1.html(tv_html, height=600)
-    with col_profile:
-        st.plotly_chart(fig_profile, use_container_width=True)
-    
-    # Top-20 Table
-    st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
-    top_gex_df = gex_df.copy()
-    top_gex_df["abs_gex"] = top_gex_df["gex"].abs()
-    top_gex_df = top_gex_df.sort_values("abs_gex", ascending=False).head(20)
-    
-    rows_html = ""
-    for _, row in top_gex_df.iterrows():
-        gex_val = row["gex"]
-        gex_cls = "net-positive" if gex_val >= 0 else "net-negative"
-        gex_str = f"${gex_val:,.2f}"
-        
-        rows_html += f"""<tr>
-<td style="text-align: left; padding: 10px 16px;">{row['exchange']}</td>
-<td class="font-mono" style="text-align: right; padding: 10px 16px; color:#ffffff; font-weight:600;">${row['strike']:,.0f}</td>
-<td style="text-align: right; padding: 10px 16px;">{row['expiry_str']}</td>
-<td style="text-align: right; padding: 10px 16px; color:{'#10b981' if row['option_type']=='C' else '#ef4444'}; font-weight:600;">{row['option_type']}</td>
-<td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['open_interest']:,.2f}</td>
-<td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['implied_volatility']*100:.1f}%</td>
-<td style="text-align: right; padding: 10px 16px;">
-<span class="{gex_cls} font-mono" style="padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 110px; text-align: right;">{gex_str}</span>
-</td>
-</tr>"""
-        
-    table_html = f"""<div class="cot-table-container">
-<table class="cot-table">
-<thead>
-<tr>
-<th style="text-align: left; font-size: 0.85em; color: #6b7280;">БИРЖА</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">СТРАЙК</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЭКСПИРАЦИЯ</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ТИП</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">ОТКРЫТЫЙ ИНТЕРЕС</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">IV (ВОЛАТИЛЬНОСТЬ)</th>
-<th style="text-align: right; font-size: 0.85em; color: #6b7280;">GEX (USD / 1%)</th>
-</tr>
-</thead>
-<tbody>
-{rows_html}
-</tbody>
-</table>
-</div>"""
-    st.markdown(table_html, unsafe_allow_html=True)
+        col_chart, col_profile = st.columns([0.83, 0.17])
+        with col_chart:
+            from src.tv_charts import render_tv_gex_chart
+            tv_html = render_tv_gex_chart(df_hist, levels_data, spot_price, zones_data)
+            st.components.v1.html(tv_html, height=600)
+        with col_profile:
+            st.plotly_chart(fig_profile, use_container_width=True)
+
+        # Top-20 Table
+        st.markdown("### 📋 Топ-20 крупных опционных страйков по влиянию на рынок")
+        top_gex_df = gex_df.copy()
+        top_gex_df["abs_gex"] = top_gex_df["gex"].abs()
+        top_gex_df = top_gex_df.sort_values("abs_gex", ascending=False).head(20)
+
+        rows_html = ""
+        for _, row in top_gex_df.iterrows():
+            gex_val = row["gex"]
+            gex_cls = "net-positive" if gex_val >= 0 else "net-negative"
+            gex_str = f"${gex_val:,.2f}"
+
+            rows_html += f"""<tr>
+    <td style="text-align: left; padding: 10px 16px;">{row['exchange']}</td>
+    <td class="font-mono" style="text-align: right; padding: 10px 16px; color:#ffffff; font-weight:600;">${row['strike']:,.0f}</td>
+    <td style="text-align: right; padding: 10px 16px;">{row['expiry_str']}</td>
+    <td style="text-align: right; padding: 10px 16px; color:{'#10b981' if row['option_type']=='C' else '#ef4444'}; font-weight:600;">{row['option_type']}</td>
+    <td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['open_interest']:,.2f}</td>
+    <td class="font-mono" style="text-align: right; padding: 10px 16px;">{row['implied_volatility']*100:.1f}%</td>
+    <td style="text-align: right; padding: 10px 16px;">
+    <span class="{gex_cls} font-mono" style="padding: 4px 10px; border-radius: 4px; display: inline-block; min-width: 110px; text-align: right;">{gex_str}</span>
+    </td>
+    </tr>"""
+
+        table_html = f"""<div class="cot-table-container">
+    <table class="cot-table">
+    <thead>
+    <tr>
+    <th style="text-align: left; font-size: 0.85em; color: #6b7280;">БИРЖА</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">СТРАЙК</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">ЭКСПИРАЦИЯ</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">ТИП</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">ОТКРЫТЫЙ ИНТЕРЕС</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">IV (ВОЛАТИЛЬНОСТЬ)</th>
+    <th style="text-align: right; font-size: 0.85em; color: #6b7280;">GEX (USD / 1%)</th>
+    </tr>
+    </thead>
+    <tbody>
+    {rows_html}
+    </tbody>
+    </table>
+    </div>"""
+        st.markdown(table_html, unsafe_allow_html=True)
+    render_gex_tracker_fragment(selected_exchange, hours_to_load, selected_window)
     
     st.markdown("<br>", unsafe_allow_html=True)
     with st.expander("📚 Справочник GEX-уровней и правила интерпретации", expanded=True):
