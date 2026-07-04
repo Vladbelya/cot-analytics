@@ -784,7 +784,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
     
     st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
     
-    @st.fragment(run_every=60)
+    @st.fragment
     def render_gex_tracker_fragment(selected_exchange, hours_to_load, selected_window):
         # Fetch all live options data first to get the list of expirations
         with st.spinner("Сбор опционных данных и расчет GEX..."):
@@ -810,7 +810,7 @@ elif app_mode == "🌊 BTC GEX Трекер":
             )
         with col_sel2:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True) # alignment spacer
-            if st.button("🔄 Обновить данные GEX", use_container_width=False, key="gex_refresh_btn"):
+            if st.button("🔄 Полное обновление и перерасчет уровней GEX", use_container_width=False, key="gex_refresh_btn"):
                 st.rerun()
 
         # Filter raw dataframe by selected expiry

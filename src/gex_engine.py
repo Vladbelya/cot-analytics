@@ -69,7 +69,9 @@ def fetch_deribit_data():
     Fetches real-time BTC option chain from Deribit.
     Returns a normalized DataFrame.
     """
-    url = "https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option"
+    import time
+    timestamp = int(time.time() * 1000)
+    url = f"https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option&_cb={timestamp}"
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     data = response.json()
@@ -123,7 +125,9 @@ def fetch_bybit_data():
     Fetches real-time BTC option chain from Bybit V5 API.
     Returns a normalized DataFrame.
     """
-    url = "https://api.bybit.com/v5/market/tickers?category=option&baseCoin=BTC"
+    import time
+    timestamp = int(time.time() * 1000)
+    url = f"https://api.bybit.com/v5/market/tickers?category=option&baseCoin=BTC&_cb={timestamp}"
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     data = response.json()
@@ -170,8 +174,10 @@ def fetch_okx_data():
     Fetches real-time BTC option chain from OKX API.
     Joins option summary and open interest endpoints.
     """
+    import time
+    timestamp = int(time.time() * 1000)
     # 1. Fetch Option Summary (contains strike, IV, mark price)
-    summary_url = "https://www.okx.com/api/v5/public/opt-summary?uly=BTC-USD"
+    summary_url = f"https://www.okx.com/api/v5/public/opt-summary?uly=BTC-USD&_cb={timestamp}"
     summary_response = requests.get(summary_url, timeout=10)
     summary_response.raise_for_status()
     summary_data = summary_response.json().get("data", [])
@@ -180,7 +186,7 @@ def fetch_okx_data():
         return pd.DataFrame()
         
     # 2. Fetch Open Interest
-    oi_url = "https://www.okx.com/api/v5/public/open-interest?instType=OPTION&uly=BTC-USD"
+    oi_url = f"https://www.okx.com/api/v5/public/open-interest?instType=OPTION&uly=BTC-USD&_cb={timestamp}"
     oi_response = requests.get(oi_url, timeout=10)
     oi_response.raise_for_status()
     oi_data = oi_response.json().get("data", [])
