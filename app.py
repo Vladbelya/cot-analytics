@@ -521,37 +521,7 @@ st.sidebar.title("⚡ Терминал Кот")
 
 app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "🤖 Бумажный бот & Бэктесты", "📖 Паспорт Терминала"])
 
-st.sidebar.markdown("Анализ позиционирования крупных участников рынка.")
-
-# Mapping Russian labels to ASCII dictionary keys to prevent Windows encoding bugs
-PARTICIPANT_DISPLAY = {
-    "Leveraged Funds (Крупные спекулянты)": "Leveraged Funds",
-    "Asset Manager (Институционалы)": "Asset Manager",
-    "Dealer Intermediary (Дилеры/Посредники)": "Dealer",
-    "Retail (Мелкие спекулянты)": "Retail"
-}
-
-st.sidebar.subheader("Параметры анализа")
-selected_market = st.sidebar.selectbox("Выберите рынок:", list(MARKETS.keys()), index=0)
-selected_display = st.sidebar.selectbox("Группа трейдеров:", list(PARTICIPANT_DISPLAY.keys()), index=0)
-tff_participant = PARTICIPANT_DISPLAY[selected_display]
-
-selected_report_type = st.sidebar.radio("Тип отчета COT:", ["Только фьючерсы", "Фьючерсы + Опционы"], index=1)
-use_combined = (selected_report_type == "Фьючерсы + Опционы")
-
-# Select period
-period_options = {
-    "1 месяц (4 недели)": 4,
-    "3 месяца (12 недель)": 12,
-    "6 месяцев (26 недель)": 26,
-    "1 год (52 недели)": 52,
-    "3 года (156 недель)": 156,
-    "Вся история": 0
-}
-selected_period = st.sidebar.radio("Период на графике:", list(period_options.keys()), index=3)
-weeks_to_show = period_options[selected_period]
-
-st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+use_combined = False
 
 if app_mode == "📈 Интерактивный Дашборд":
     st.title("📈 Интерактивный Дашборд и Главный Репорт")
@@ -1285,6 +1255,35 @@ if not check_data_exists():
     st.title("⚡ Терминал Кот")
     st.info("👋 Локальные файлы данных не обнаружены. Пожалуйста, нажмите кнопку **'Обновить базу данных'** на панели слева для скачивания истории.")
 else:
+    st.sidebar.markdown("Анализ позиционирования крупных участников рынка.")
+
+    # Mapping Russian labels to ASCII dictionary keys to prevent Windows encoding bugs
+    PARTICIPANT_DISPLAY = {
+        "Leveraged Funds (Крупные спекулянты)": "Leveraged Funds",
+        "Asset Manager (Институционалы)": "Asset Manager",
+        "Dealer Intermediary (Дилеры/Посредники)": "Dealer",
+        "Retail (Мелкие спекулянты)": "Retail"
+    }
+
+    st.sidebar.subheader("Параметры анализа")
+    selected_market = st.sidebar.selectbox("Выберите рынок:", list(MARKETS.keys()), index=0)
+    selected_display = st.sidebar.selectbox("Группа трейдеров:", list(PARTICIPANT_DISPLAY.keys()), index=0)
+    tff_participant = PARTICIPANT_DISPLAY[selected_display]
+
+    # Select period
+    period_options = {
+        "1 месяц (4 недели)": 4,
+        "3 месяца (12 недель)": 12,
+        "6 месяцев (26 недель)": 26,
+        "1 год (52 недели)": 52,
+        "3 года (156 недель)": 156,
+        "Вся история": 0
+    }
+    selected_period = st.sidebar.radio("Период на графике:", list(period_options.keys()), index=3)
+    weeks_to_show = period_options[selected_period]
+
+    st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+
     # Load and calculate metrics for the selected market
     df = get_market_analysis(selected_market, tff_participant, use_combined=use_combined)
     
