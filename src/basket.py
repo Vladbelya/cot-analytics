@@ -142,7 +142,7 @@ def get_options_basket_data(assets_list):
         
     return basket + "\n"
 
-def build_global_data_basket(assets_list, extra_context=""):
+def build_global_data_basket(assets_list, extra_context="", use_combined=True):
     """
     Combines ALL data streams into a single massive 'Basket' string.
     This serves as the raw input for the AI noise filter.
@@ -167,7 +167,7 @@ def build_global_data_basket(assets_list, extra_context=""):
         basket += f"Ошибка получения альт. данных: {e}\n\n"
         
     # 3. COT Data (Defaulting to Combined)
-    basket += get_cot_data(assets_list, use_combined=True)
+    basket += get_cot_data(assets_list, use_combined=use_combined)
     
     # 4. Options Data
     basket += get_options_basket_data(assets_list)

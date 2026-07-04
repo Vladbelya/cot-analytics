@@ -307,7 +307,7 @@ Return the conclusion in beautifully formatted Markdown.
     
     return response.text
 
-def generate_holistic_report(assets_string, extra_urls_string=""):
+def generate_holistic_report(assets_string, extra_urls_string="", use_combined=True):
     client = get_gemini_client()
     kb = load_knowledge_base()
     
@@ -329,7 +329,7 @@ def generate_holistic_report(assets_string, extra_urls_string=""):
             
     # Build the massive Data Basket
     from src.basket import build_global_data_basket
-    data_basket = build_global_data_basket(assets_list, extra_context=extra_context)
+    data_basket = build_global_data_basket(assets_list, extra_context=extra_context, use_combined=use_combined)
     
     prompt = REPORT_PROMPT.format(
         assets=assets_string if assets_string else "General Market Portfolio",
@@ -395,7 +395,7 @@ JSON STRUCTURE REQUIRED:
 If any metric is missing from the Data Basket or has no data, just output "Данных нет или они в пределах нормы." for that key.
 """
 
-def generate_dashboard_report(assets_string, extra_urls_string=""):
+def generate_dashboard_report(assets_string, extra_urls_string="", use_combined=True):
     client = get_gemini_client()
     kb = load_knowledge_base()
     
@@ -414,7 +414,7 @@ def generate_dashboard_report(assets_string, extra_urls_string=""):
             extra_context += f"\n--- Failed to load {url}: {e} ---\n"
             
     from src.basket import build_global_data_basket
-    data_basket = build_global_data_basket(assets_list, extra_context=extra_context)
+    data_basket = build_global_data_basket(assets_list, extra_context=extra_context, use_combined=use_combined)
     
     prompt = DASHBOARD_PROMPT.format(
         assets=assets_string if assets_string else "General Market Portfolio",

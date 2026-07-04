@@ -520,6 +520,39 @@ def draw_flows_chart(plot_df, market_name, chart_height=750):
 st.sidebar.title("⚡ Терминал Кот")
 
 app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT", "📈 Интерактивный Дашборд", "🌊 BTC GEX Трекер", "🤖 Бумажный бот & Бэктесты", "📖 Паспорт Терминала"])
+
+st.sidebar.markdown("Анализ позиционирования крупных участников рынка.")
+
+# Mapping Russian labels to ASCII dictionary keys to prevent Windows encoding bugs
+PARTICIPANT_DISPLAY = {
+    "Leveraged Funds (Крупные спекулянты)": "Leveraged Funds",
+    "Asset Manager (Институционалы)": "Asset Manager",
+    "Dealer Intermediary (Дилеры/Посредники)": "Dealer",
+    "Retail (Мелкие спекулянты)": "Retail"
+}
+
+st.sidebar.subheader("Параметры анализа")
+selected_market = st.sidebar.selectbox("Выберите рынок:", list(MARKETS.keys()), index=0)
+selected_display = st.sidebar.selectbox("Группа трейдеров:", list(PARTICIPANT_DISPLAY.keys()), index=0)
+tff_participant = PARTICIPANT_DISPLAY[selected_display]
+
+selected_report_type = st.sidebar.radio("Тип отчета COT:", ["Только фьючерсы", "Фьючерсы + Опционы"], index=1)
+use_combined = (selected_report_type == "Фьючерсы + Опционы")
+
+# Select period
+period_options = {
+    "1 месяц (4 недели)": 4,
+    "3 месяца (12 недель)": 12,
+    "6 месяцев (26 недель)": 26,
+    "1 год (52 недели)": 52,
+    "3 года (156 недель)": 156,
+    "Вся история": 0
+}
+selected_period = st.sidebar.radio("Период на графике:", list(period_options.keys()), index=3)
+weeks_to_show = period_options[selected_period]
+
+st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+
 if app_mode == "📈 Интерактивный Дашборд":
     st.title("📈 Интерактивный Дашборд и Главный Репорт")
     st.markdown("Сюда стягивается вся информация, графики, и здесь же генерируется один отчетливый репорт с настроением фондов, банков и учетом новостей.")
@@ -546,9 +579,9 @@ if app_mode == "📈 Интерактивный Дашборд":
     
     if st.button("🚀 СГЕНЕРИРОВАТЬ ДАШБОРД И ПОЛНЫЙ ОТЧЕТ", use_container_width=True, type="primary"):
         with st.spinner("ИИ анализирует данные, собирает графики и читает новости... Это займет около минуты."):
-            json_data = generate_dashboard_report(user_assets_input, extra_urls_input)
+            json_data = generate_dashboard_report(user_assets_input, extra_urls_input, use_combined=use_combined)
             try:
-                holistic_report = generate_holistic_report(user_assets_input, extra_urls_input)
+                holistic_report = generate_holistic_report(user_assets_input, extra_urls_input, use_combined=use_combined)
             except Exception as e:
                 holistic_report = f"Не удалось сгенерировать расширенный отчет: {e}"
             
@@ -1214,37 +1247,7 @@ elif app_mode == "🤖 Бумажный бот & Бэктесты":
     st.stop()
 
 
-st.sidebar.markdown("Анализ позиционирования крупных участников рынка.")
-
-# Mapping Russian labels to ASCII dictionary keys to prevent Windows encoding bugs
-PARTICIPANT_DISPLAY = {
-    "Leveraged Funds (Крупные спекулянты)": "Leveraged Funds",
-    "Asset Manager (Институционалы)": "Asset Manager",
-    "Dealer Intermediary (Дилеры/Посредники)": "Dealer",
-    "Retail (Мелкие спекулянты)": "Retail"
-}
-
-st.sidebar.subheader("Параметры анализа")
-selected_market = st.sidebar.selectbox("Выберите рынок:", list(MARKETS.keys()), index=0)
-selected_display = st.sidebar.selectbox("Группа трейдеров:", list(PARTICIPANT_DISPLAY.keys()), index=0)
-tff_participant = PARTICIPANT_DISPLAY[selected_display]
-
-selected_report_type = st.sidebar.radio("Тип отчета COT:", ["Только фьючерсы", "Фьючерсы + Опционы"], index=1)
-use_combined = (selected_report_type == "Фьючерсы + Опционы")
-
-# Select period
-period_options = {
-    "1 месяц (4 недели)": 4,
-    "3 месяца (12 недель)": 12,
-    "6 месяцев (26 недель)": 26,
-    "1 год (52 недели)": 52,
-    "3 года (156 недель)": 156,
-    "Вся история": 0
-}
-selected_period = st.sidebar.radio("Период на графике:", list(period_options.keys()), index=3)
-weeks_to_show = period_options[selected_period]
-
-st.sidebar.markdown("<div class='neon-hr'></div>", unsafe_allow_html=True)
+# Sidebar options have been moved to the top of the file to prevent NameErrors and double rendering.
 
 # Data freshness status
 st.sidebar.subheader("База данных")
