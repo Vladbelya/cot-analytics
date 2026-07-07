@@ -587,12 +587,15 @@ def render_tv_flows_chart(df_plot, market_name):
         date_str = row['report_date'].strftime('%Y-%m-%d')
         
         long_val = float(row['long_change'])
-        long_color = '#10b981' if long_val >= 0 else '#ef4444'
+        # Long uses green color scheme
+        long_color = '#10b981' if long_val >= 0 else '#34d399'
         
         short_val = float(row['short_change'])
-        short_color = '#10b981' if short_val >= 0 else '#ef4444'
+        # Short uses red color scheme
+        short_color = '#ef4444' if short_val >= 0 else '#f87171'
         
         net_val = float(row['wow_change_net'])
+        # Net delta uses green/red color scheme
         net_color = '#10b981' if net_val >= 0 else '#ef4444'
         
         chart_data.append({
@@ -762,23 +765,39 @@ def render_tv_flows_chart(df_plot, market_name):
             // 2. Create Long Flow Chart
             const longWrapper = document.getElementById('wrapper-long');
             const longChart = LightweightCharts.createChart(document.getElementById('chart-long'), getOptions('#0b0f19'));
-            const longSeries = longChart.addHistogramSeries({{
-                color: '#10b981',
+            const longSeries = longChart.addBaselineSeries({{
+                baseValue: {{ type: 'price', price: 0 }},
+                topLineColor: '#10b981',
+                topFillColor1: 'rgba(16, 185, 129, 0.45)',
+                topFillColor2: 'rgba(16, 185, 129, 0.05)',
+                bottomLineColor: 'rgba(52, 211, 153, 0.7)',
+                bottomFillColor1: 'rgba(52, 211, 153, 0.02)',
+                bottomFillColor2: 'rgba(52, 211, 153, 0.2)',
+                lineWidth: 2,
+                relativeGradient: true,
                 priceFormat: {{ type: 'volume' }},
             }});
             
-            const longData = data.map(d => ({{ time: d.time, value: d.long_val, color: d.long_color }}));
+            const longData = data.map(d => ({{ time: d.time, value: d.long_val }}));
             longSeries.setData(longData);
             
             // 3. Create Short Flow Chart
             const shortWrapper = document.getElementById('wrapper-short');
             const shortChart = LightweightCharts.createChart(document.getElementById('chart-short'), getOptions('#0b0f19'));
-            const shortSeries = shortChart.addHistogramSeries({{
-                color: '#ef4444',
+            const shortSeries = shortChart.addBaselineSeries({{
+                baseValue: {{ type: 'price', price: 0 }},
+                topLineColor: '#ef4444',
+                topFillColor1: 'rgba(239, 68, 68, 0.45)',
+                topFillColor2: 'rgba(239, 68, 68, 0.05)',
+                bottomLineColor: 'rgba(248, 113, 113, 0.7)',
+                bottomFillColor1: 'rgba(248, 113, 113, 0.02)',
+                bottomFillColor2: 'rgba(248, 113, 113, 0.2)',
+                lineWidth: 2,
+                relativeGradient: true,
                 priceFormat: {{ type: 'volume' }},
             }});
             
-            const shortData = data.map(d => ({{ time: d.time, value: d.short_val, color: d.short_color }}));
+            const shortData = data.map(d => ({{ time: d.time, value: d.short_val }}));
             shortSeries.setData(shortData);
             
             // 4. Create Net Delta Chart
@@ -786,16 +805,32 @@ def render_tv_flows_chart(df_plot, market_name):
             const netOptions = getOptions('#0b0f19');
             netOptions.timeScale.visible = true;
             const netChart = LightweightCharts.createChart(document.getElementById('chart-net'), netOptions);
-            const netSeries = netChart.addHistogramSeries({{
-                color: '#3498db',
+            const netSeries = netChart.addBaselineSeries({{
+                baseValue: {{ type: 'price', price: 0 }},
+                topLineColor: '#10b981',
+                topFillColor1: 'rgba(16, 185, 129, 0.45)',
+                topFillColor2: 'rgba(16, 185, 129, 0.05)',
+                bottomLineColor: 'rgba(239, 68, 68, 0.7)',
+                bottomFillColor1: 'rgba(239, 68, 68, 0.02)',
+                bottomFillColor2: 'rgba(239, 68, 68, 0.2)',
+                lineWidth: 2,
+                relativeGradient: true,
                 priceFormat: {{ type: 'volume' }},
             }});
             
-            const netData = data.map(d => ({{ time: d.time, value: d.net_val, color: d.net_color }}));
+            const netData = data.map(d => ({{ time: d.time, value: d.net_val }}));
             netSeries.setData(netData);
             
-            // Fit timescale on all
-            priceChart.timeScale().fitContent();
+            // Fit timescale or zoom to show last 30 bars by default to avoid compressed view
+            const totalBars = data.length;
+            if (totalBars > 30) {{
+                priceChart.timeScale().setVisibleLogicalRange({{
+                    from: totalBars - 30,
+                    to: totalBars
+                }});
+            }} else {{
+                priceChart.timeScale().fitContent();
+            }}
             
             // Synchronize visible ranges
             let isSyncing = false;
