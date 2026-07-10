@@ -580,34 +580,23 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
 
 def render_tv_flows_chart(df_plot, market_name):
     if df_plot.empty:
-        return "<div style='color: white; text-align: center; padding: 20px;'>Нет данных потоков для графика</div>"
+        return "<div style='color: white; text-align: center; padding: 20px;'>Нет данных настроений для графика</div>"
     
-    # Pre-calculate colors and values in Python
+    # Pre-calculate values in Python
     chart_data = []
     for _, row in df_plot.iterrows():
         date_str = row['report_date'].strftime('%Y-%m-%d')
         
-        long_val = float(row['long_change'])
-        # Long uses green color scheme
-        long_color = '#10b981' if long_val >= 0 else '#34d399'
-        
-        short_val = float(row['short_change'])
-        # Short uses red color scheme
-        short_color = '#ef4444' if short_val >= 0 else '#f87171'
-        
-        net_val = float(row['wow_change_net'])
-        # Net delta uses green/red color scheme
-        net_color = '#10b981' if net_val >= 0 else '#ef4444'
+        long_val = float(row['long_pct_oi']) if not pd.isna(row['long_pct_oi']) else 0.0
+        short_val = float(row['short_pct_oi']) if not pd.isna(row['short_pct_oi']) else 0.0
+        net_val = float(row['net_pct_oi']) if not pd.isna(row['net_pct_oi']) else 0.0
         
         chart_data.append({
             'time': date_str,
             'close': float(row['close']),
             'long_val': long_val,
-            'long_color': long_color,
             'short_val': short_val,
-            'short_color': short_color,
-            'net_val': net_val,
-            'net_color': net_color
+            'net_val': net_val
         })
         
     chart_data_json = json.dumps(chart_data)
@@ -689,21 +678,21 @@ def render_tv_flows_chart(df_plot, market_name):
             </div>
             <div id="wrapper-long" class="chart-wrapper">
                 <div class="chart-legend">
-                    <span class="legend-title" style="color: #10b981">Приток/Отток в Лонг</span>
+                    <span class="legend-title" style="color: #10b981">Long позиция (% от группы)</span>
                     <span id="legend-long">Ожидание...</span>
                 </div>
                 <div id="chart-long" style="width:100%; height:100%;"></div>
             </div>
             <div id="wrapper-short" class="chart-wrapper">
                 <div class="chart-legend">
-                    <span class="legend-title" style="color: #ef4444">Приток/Отток в Шорт</span>
+                    <span class="legend-title" style="color: #ef4444">Short позиция (% от группы)</span>
                     <span id="legend-short">Ожидание...</span>
                 </div>
                 <div id="chart-short" style="width:100%; height:100%;"></div>
             </div>
             <div id="wrapper-net" class="chart-wrapper">
                 <div class="chart-legend">
-                    <span class="legend-title" style="color: #3498db">Чистая Дельта (WoW Net)</span>
+                    <span class="legend-title" style="color: #f39c12">Чистый баланс Net % OI</span>
                     <span id="legend-net">Ожидание...</span>
                 </div>
                 <div id="chart-net" style="width:100%; height:100%;"></div>
@@ -763,66 +752,62 @@ def render_tv_flows_chart(df_plot, market_name):
             const priceData = data.map(d => ({{ time: d.time, value: d.close }}));
             priceSeries.setData(priceData);
             
-            // 2. Create Long Flow Chart
+            // 2. Create Long % Chart (0-100%)
             const longWrapper = document.getElementById('wrapper-long');
             const longChart = LightweightCharts.createChart(document.getElementById('chart-long'), getOptions('#0b0f19'));
-            const longSeries = longChart.addBaselineSeries({{
-                baseValue: {{ type: 'price', price: 0 }},
-                topLineColor: '#10b981',
-                topFillColor1: 'rgba(16, 185, 129, 0.45)',
-                topFillColor2: 'rgba(16, 185, 129, 0.05)',
-                bottomLineColor: 'rgba(52, 211, 153, 0.7)',
-                bottomFillColor1: 'rgba(52, 211, 153, 0.02)',
-                bottomFillColor2: 'rgba(52, 211, 153, 0.2)',
+            const longSeries = longChart.addAreaSeries({{
+                lineColor: '#10b981',
+                topColor: 'rgba(16, 185, 129, 0.2)',
+                bottomColor: 'rgba(16, 185, 129, 0.01)',
                 lineWidth: 2,
-                relativeGradient: true,
-                priceFormat: {{ type: 'volume' }},
             }});
             
             const longData = data.map(d => ({{ time: d.time, value: d.long_val }}));
             longSeries.setData(longData);
             
-            // 3. Create Short Flow Chart
+            // 3. Create Short % Chart (0-100%)
             const shortWrapper = document.getElementById('wrapper-short');
             const shortChart = LightweightCharts.createChart(document.getElementById('chart-short'), getOptions('#0b0f19'));
-            const shortSeries = shortChart.addBaselineSeries({{
-                baseValue: {{ type: 'price', price: 0 }},
-                topLineColor: '#ef4444',
-                topFillColor1: 'rgba(239, 68, 68, 0.45)',
-                topFillColor2: 'rgba(239, 68, 68, 0.05)',
-                bottomLineColor: 'rgba(248, 113, 113, 0.7)',
-                bottomFillColor1: 'rgba(248, 113, 113, 0.02)',
-                bottomFillColor2: 'rgba(248, 113, 113, 0.2)',
+            const shortSeries = shortChart.addAreaSeries({{
+                lineColor: '#ef4444',
+                topColor: 'rgba(239, 68, 68, 0.2)',
+                bottomColor: 'rgba(239, 68, 68, 0.01)',
                 lineWidth: 2,
-                relativeGradient: true,
-                priceFormat: {{ type: 'volume' }},
             }});
             
             const shortData = data.map(d => ({{ time: d.time, value: d.short_val }}));
             shortSeries.setData(shortData);
             
-            // 4. Create Net Delta Chart
+            // 4. Create Net % OI Chart (-100% to +100%)
             const netWrapper = document.getElementById('wrapper-net');
             const netOptions = getOptions('#0b0f19');
             netOptions.timeScale.visible = true;
             const netChart = LightweightCharts.createChart(document.getElementById('chart-net'), netOptions);
             const netSeries = netChart.addBaselineSeries({{
-                baseValue: {{ type: 'price', price: 0 }},
+                baseValue: {{ type: 'price', price: 0.0 }},
                 topLineColor: '#10b981',
-                topFillColor1: 'rgba(16, 185, 129, 0.45)',
+                topFillColor1: 'rgba(16, 185, 129, 0.3)',
                 topFillColor2: 'rgba(16, 185, 129, 0.05)',
-                bottomLineColor: 'rgba(239, 68, 68, 0.7)',
-                bottomFillColor1: 'rgba(239, 68, 68, 0.02)',
-                bottomFillColor2: 'rgba(239, 68, 68, 0.2)',
+                bottomLineColor: '#ef4444',
+                bottomFillColor1: 'rgba(239, 68, 68, 0.05)',
+                bottomFillColor2: 'rgba(239, 68, 68, 0.3)',
                 lineWidth: 2,
                 relativeGradient: true,
-                priceFormat: {{ type: 'volume' }},
             }});
             
             const netData = data.map(d => ({{ time: d.time, value: d.net_val }}));
             netSeries.setData(netData);
             
-            // Fit timescale or zoom to show last 30 bars by default to avoid compressed view
+            // Net zero reference line
+            netSeries.createPriceLine({{
+                price: 0.0,
+                color: 'rgba(255, 255, 255, 0.3)',
+                lineWidth: 1.5,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+            }});
+            
+            // Fit timescale or zoom to show last 30 bars by default
             const totalBars = data.length;
             if (totalBars > 30) {{
                 priceChart.timeScale().setVisibleLogicalRange({{
@@ -894,9 +879,9 @@ def render_tv_flows_chart(df_plot, market_name):
                 if (!target) return;
                 
                 legPrice.innerHTML = `<span style="color:#ffffff">$${{target.close.toLocaleString('en-US', {{minimumFractionDigits:2, maximumFractionDigits:4}})}}</span> <span style="color:#64748b">(${{target.time}})</span>`;
-                legLong.innerHTML = `<span style="color:${{target.long_color}}">${{target.long_val >= 0 ? '+' : ''}}${{target.long_val.toLocaleString('en-US')}} контр.</span>`;
-                legShort.innerHTML = `<span style="color:${{target.short_color}}">${{target.short_val >= 0 ? '+' : ''}}${{target.short_val.toLocaleString('en-US')}} контр.</span>`;
-                legNet.innerHTML = `<span style="color:${{target.net_color}}">${{target.net_val >= 0 ? '+' : ''}}${{target.net_val.toLocaleString('en-US')}} контр.</span>`;
+                legLong.innerHTML = `<span style="color:#10b981">${{target.long_val.toFixed(2)}}%</span>`;
+                legShort.innerHTML = `<span style="color:#ef4444">${{target.short_val.toFixed(2)}}%</span>`;
+                legNet.innerHTML = `<span style="color:#f39c12">${{target.net_val >= 0 ? '+' : ''}}${{target.net_val.toFixed(2)}}%</span>`;
             }}
             
             updateLegends(null);
