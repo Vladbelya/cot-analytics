@@ -9,53 +9,74 @@ import numpy as np
 
 # 1. SIGNAL DEFINITIONS
 SIGNAL_DEFS = {
-    "extreme_short": {
-        "name": "Экстремальный шорт (3г)",
-        "icon": "🟢",
-        "direction": "bullish",  # contrarian
-        "desc": "COT Index Net % OI 3г ≤ 10% — чистая позиция крупных спекулянтов на историческом минимуме относительно открытого интереса (шорт-сквиз потенциал).",
-    },
-    "extreme_long": {
-        "name": "Экстремальный лонг (3г)",
-        "icon": "🔴",
-        "direction": "bearish",  # contrarian
-        "desc": "COT Index Net % OI 3г ≥ 90% — чистая позиция крупных спекулянтов на историческом максимуме относительно открытого интереса (лонг-сквиз потенциал).",
-    },
-    "sharp_net_increase": {
-        "name": "Резкий рост чистой позиции",
-        "icon": "🟢",
-        "direction": "bullish",
-        "desc": "Недельное изменение net/OI в топ-5% исторических значений — агрессивное наращивание лонгов.",
-    },
-    "sharp_net_decrease": {
-        "name": "Резкий сброс чистой позиции",
-        "icon": "🔴",
-        "direction": "bearish",
-        "desc": "Недельное изменение net/OI в нижних 5% — агрессивный сброс/шортинг.",
-    },
+    # 1. Net Position / Net % OI Zero Crossover
     "zero_cross_up": {
-        "name": "Пересечение нуля вверх",
+        "name": "Net Position: Пересечение нуля вверх",
         "icon": "🟢",
         "direction": "bullish",
-        "desc": "Чистая позиция перешла из минуса в плюс — участники переключились с шорта на лонг.",
+        "desc": "Чистая позиция участников перешла из отрицательной в положительную (лонги превысили шорты).",
     },
     "zero_cross_down": {
-        "name": "Пересечение нуля вниз",
+        "name": "Net Position: Пересечение нуля вниз",
         "icon": "🔴",
         "direction": "bearish",
-        "desc": "Чистая позиция перешла из плюса в минус — участники переключились с лонга на шорт.",
+        "desc": "Чистая позиция участников перешла из положительной в отрицательную (шорты превысили лонги).",
     },
-    "bullish_divergence": {
-        "name": "Бычья дивергенция",
+    
+    # 2. Z-Score Signals (156w Net % OI Z-Score)
+    "zscore_bullish": {
+        "name": "Z-Score: Превышение -1.5 std (Бычий)",
         "icon": "🟢",
         "direction": "bullish",
-        "desc": "Бычье расхождение: цена снижается, в то время как чистая позиция растет.",
+        "desc": "Z-Score Net % OI (3г) достиг или опустился ниже -1.5 — сильное отклонение позиции в сторону шорта (потенциальный разворот вверх).",
     },
-    "bearish_divergence": {
-        "name": "Медвежья дивергенция",
+    "zscore_bearish": {
+        "name": "Z-Score: Превышение +1.5 std (Медвежий)",
         "icon": "🔴",
         "direction": "bearish",
-        "desc": "Медвежье расхождение: цена растет, в то время как чистая позиция падает.",
+        "desc": "Z-Score Net % OI (3г) достиг или поднялся выше +1.5 — сильное отклонение позиции в сторону лонга (потенциальный разворот вниз).",
+    },
+    
+    # 3. Percentile (COT Index) 3-Year (156w)
+    "percentile_3y_bullish": {
+        "name": "Percentile 3г: Перепроданность (≤20%)",
+        "icon": "🟢",
+        "direction": "bullish",
+        "desc": "COT Index Net % OI (3г) ≤ 20% — позиция участников близка к историческому минимуму.",
+    },
+    "percentile_3y_bearish": {
+        "name": "Percentile 3г: Перекупленность (≥80%)",
+        "icon": "🔴",
+        "direction": "bearish",
+        "desc": "COT Index Net % OI (3г) ≥ 80% — позиция участников близка к историческому максимуму.",
+    },
+    
+    # 4. Percentile (COT Index) 1-Year (52w)
+    "percentile_1y_bullish": {
+        "name": "Percentile 1г: Перепроданность (≤20%)",
+        "icon": "🟢",
+        "direction": "bullish",
+        "desc": "COT Index Net % OI (1г) ≤ 20% — позиция участников на годовом минимуме.",
+    },
+    "percentile_1y_bearish": {
+        "name": "Percentile 1г: Перекупленность (≥80%)",
+        "icon": "🔴",
+        "direction": "bearish",
+        "desc": "COT Index Net % OI (1г) ≥ 80% — позиция участников на годовом максимуме.",
+    },
+    
+    # 5. Divergence (4-week)
+    "bullish_divergence": {
+        "name": "Дивергенция: Бычья",
+        "icon": "🟢",
+        "direction": "bullish",
+        "desc": "Цена актива падает, но чистая позиция участников растет (бычье расхождение).",
+    },
+    "bearish_divergence": {
+        "name": "Дивергенция: Медвежья",
+        "icon": "🔴",
+        "direction": "bearish",
+        "desc": "Цена актива растет, но чистая позиция участников падает (медвежье расхождение).",
     },
 }
 
@@ -69,23 +90,24 @@ def detect_signals_series(df):
     """
     signals = {}
 
-    # Extreme positioning (contrarian) using 156w Net % OI COT Index
-    signals["extreme_short"] = df["cot_index_net_pct_oi_156w"] <= 10.0
-    signals["extreme_long"] = df["cot_index_net_pct_oi_156w"] >= 90.0
-
-    # Sharp weekly moves (momentum)
-    wow = df["wow_change_net_pct_oi"]
-    q95 = wow.quantile(0.95)
-    q05 = wow.quantile(0.05)
-    signals["sharp_net_increase"] = wow >= q95
-    signals["sharp_net_decrease"] = wow <= q05
-
-    # Zero crossover
+    # 1. Zero Crossover
     net_prev = df["net"].shift(1)
     signals["zero_cross_up"] = (net_prev < 0) & (df["net"] >= 0)
     signals["zero_cross_down"] = (net_prev >= 0) & (df["net"] < 0)
 
-    # Divergence (4-week)
+    # 2. Z-Score (156w Net % OI Z-Score)
+    signals["zscore_bullish"] = df["net_pct_oi_zscore_156w"] <= -1.5
+    signals["zscore_bearish"] = df["net_pct_oi_zscore_156w"] >= 1.5
+
+    # 3. Percentiles 3-Year (156w Net % OI COT Index)
+    signals["percentile_3y_bullish"] = df["cot_index_net_pct_oi_156w"] <= 20.0
+    signals["percentile_3y_bearish"] = df["cot_index_net_pct_oi_156w"] >= 80.0
+
+    # 4. Percentiles 1-Year (52w Net % OI COT Index)
+    signals["percentile_1y_bullish"] = df["cot_index_net_pct_oi_52w"] <= 20.0
+    signals["percentile_1y_bearish"] = df["cot_index_net_pct_oi_52w"] >= 80.0
+
+    # 5. Divergence (4-week)
     signals["bullish_divergence"] = df["signal_bullish_div_4w"]
     signals["bearish_divergence"] = df["signal_bearish_div_4w"]
 
@@ -105,12 +127,13 @@ def _compute_forward_returns(df):
     """
     Pre-compute forward percentage returns for all horizons.
     Returns a dict of horizon -> Series of % returns.
-    Accounts for 1-week publication delay: Entry is at Tuesday T+1, Exit is at Tuesday T+1+H.
+    Entry is at Friday close of the publication week (T),
+    Exit is at Friday close of week T+H.
     """
     fwd = {}
-    entry_price = df["close"].shift(-1)
+    entry_price = df["close"]
     for h in FORWARD_HORIZONS:
-        exit_price = df["close"].shift(-(1 + h))
+        exit_price = df["close"].shift(-h)
         fwd[h] = ((exit_price - entry_price) / entry_price) * 100.0
     return fwd
 
@@ -123,7 +146,7 @@ def backtest_signal(df, signal_series, direction, horizons=None):
 
     # Only use signals that have enough forward data
     max_horizon = max(horizons)
-    limit = 1 + max_horizon
+    limit = max_horizon
     usable_mask = signal_series & signal_series.index.isin(
         df.index[:-limit] if len(df) > limit else pd.Index([])
     )
@@ -403,19 +426,7 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
 
     parts = []
 
-    if key == "extreme_short":
-        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
-        parts.append(
-            f"Сигнал «{name}»: COT Index Net % OI 3г = {cot_idx:.1f}%, что означает — "
-            f"текущее отношение чистой позиции к открытому интересу находится у нижней границы своего 3-летнего диапазона."
-        )
-    elif key == "extreme_long":
-        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
-        parts.append(
-            f"Сигнал «{name}»: COT Index Net % OI 3г = {cot_idx:.1f}%, что означает — "
-            f"текущее отношение чистой позиции к открытому интересу находится у верхней границы своего 3-летнего диапазона."
-        )
-    elif key == "zero_cross_up":
+    if key == "zero_cross_up":
         parts.append(
             f"Сигнал «{name}»: чистая позиция перешла из отрицательной в положительную зону. "
             f"Суммарный объём лонгов превысил шорты."
@@ -425,17 +436,41 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
             f"Сигнал «{name}»: чистая позиция перешла из положительной в отрицательную зону. "
             f"Суммарный объём шортов превысил лонги."
         )
-    elif key == "sharp_net_increase":
-        wow_val = latest.get("wow_change_net_pct_oi", 0)
+    elif key == "zscore_bullish":
+        zs = latest.get("net_pct_oi_zscore_156w", 0)
         parts.append(
-            f"Сигнал «{name}»: недельное изменение net/OI = {wow_val:+.2f}%, "
-            f"что входит в топ-5% исторических значений."
+            f"Сигнал «{name}»: Z-Score Net % OI (3г) достиг {zs:.2f}, "
+            f"что указывает на существенное отклонение позиционирования участников в сторону шорта относительно нормы."
         )
-    elif key == "sharp_net_decrease":
-        wow_val = latest.get("wow_change_net_pct_oi", 0)
+    elif key == "zscore_bearish":
+        zs = latest.get("net_pct_oi_zscore_156w", 0)
         parts.append(
-            f"Сигнал «{name}»: недельное изменение net/OI = {wow_val:+.2f}%, "
-            f"что входит в нижние 5% исторических значений."
+            f"Сигнал «{name}»: Z-Score Net % OI (3г) достиг {zs:.2f}, "
+            f"что указывает на существенное отклонение позиционирования участников в сторону лонга относительно нормы."
+        )
+    elif key == "percentile_3y_bullish":
+        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
+        parts.append(
+            f"Сигнал «{name}»: COT Index Net % OI (3г) достиг {cot_idx:.1f}%, "
+            f"что означает нахождение чистой позиции в нижней 20% зоне исторического диапазона."
+        )
+    elif key == "percentile_3y_bearish":
+        cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
+        parts.append(
+            f"Сигнал «{name}»: COT Index Net % OI (3г) достиг {cot_idx:.1f}%, "
+            f"что означает нахождение чистой позиции в верхней 80% зоне исторического диапазона."
+        )
+    elif key == "percentile_1y_bullish":
+        cot_idx = latest.get("cot_index_net_pct_oi_52w", 0)
+        parts.append(
+            f"Сигнал «{name}»: COT Index Net % OI (1г) достиг {cot_idx:.1f}%, "
+            f"что означает нахождение чистой позиции в нижней 20% зоне 1-годового диапазона."
+        )
+    elif key == "percentile_1y_bearish":
+        cot_idx = latest.get("cot_index_net_pct_oi_52w", 0)
+        parts.append(
+            f"Сигнал «{name}»: COT Index Net % OI (1г) достиг {cot_idx:.1f}%, "
+            f"что означает нахождение чистой позиции в верхней 80% зоне 1-годового диапазона."
         )
     elif key == "bullish_divergence":
         parts.append(

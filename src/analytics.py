@@ -70,17 +70,22 @@ def load_and_prepare_data(market_name, participant_name, use_combined=False):
     else:
         temp_cot["spread"] = 0.0
         
-    # Merge using merge_asof (align COT date with closest preceding daily price)
+    # COT is collected on Tuesday, but published on Friday of the same week.
+    # Align COT report row with the Friday close price of the same week (release date).
+    temp_cot["friday_release_date"] = temp_cot["report_date"] + pd.Timedelta(days=3)
+    
+    temp_cot = temp_cot.sort_values("friday_release_date")
+    
     merged = pd.merge_asof(
         temp_cot,
         price_df,
-        left_on="report_date",
+        left_on="friday_release_date",
         right_on="date",
         direction="backward"
     )
     
     # Clean merged df
-    merged = merged.drop(columns=["date"])
+    merged = merged.drop(columns=["date", "friday_release_date"])
     return merged
 
 def calculate_metrics(df):
