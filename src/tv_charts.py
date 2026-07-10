@@ -276,7 +276,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
         chart_data.append({
             'time': date_str,
             'close': float(row['close']),
-            'zscore': float(row['net_pct_oi_zscore_52w']) if not pd.isna(row['net_pct_oi_zscore_52w']) else 0.0,
+            'net_pct_oi': float(row['net_pct_oi']) if not pd.isna(row['net_pct_oi']) else 0.0,
             'percentile': float(row['cot_index_net_pct_oi_52w']) if not pd.isna(row['cot_index_net_pct_oi_52w']) else 50.0,
         })
     
@@ -355,7 +355,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
             </div>
             <div id="wrapper-zscore" class="chart-wrapper">
                 <div class="chart-legend">
-                    <span class="legend-title" style="color: #f39c12">Z-Score позиций (52н)</span>
+                    <span class="legend-title" style="color: #f39c12">Баланс позиций Net % OI (Групповой)</span>
                     <span id="legend-zscore">Ожидание...</span>
                 </div>
                 <div id="chart-zscore" style="width:100%; height:100%;"></div>
@@ -422,7 +422,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
             const priceData = data.map(d => ({{ time: d.time, value: d.close }}));
             priceSeries.setData(priceData);
             
-            // 2. Create Z-Score Chart
+            // 2. Create Net % OI Chart
             const zscoreWrapper = document.getElementById('wrapper-zscore');
             const zscoreChart = LightweightCharts.createChart(document.getElementById('chart-zscore'), getOptions('#0b0f19'));
             const zscoreSeries = zscoreChart.addLineSeries({{
@@ -430,32 +430,33 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 lineWidth: 2,
             }});
             
-            const zscoreData = data.map(d => ({{ time: d.time, value: d.zscore }}));
+            const zscoreData = data.map(d => ({{ time: d.time, value: d.net_pct_oi }}));
             zscoreSeries.setData(zscoreData);
             
-            // Z-score thresholds
+            // Net % OI levels
             zscoreSeries.createPriceLine({{
-                price: {z_up},
-                color: '{color_up}',
+                price: 0.0,
+                color: 'rgba(255,255,255,0.4)',
                 lineWidth: 1.5,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 axisLabelVisible: true,
-                title: 'Z-Up ({z_up:+.1f})',
+                title: 'Нейтрально (0%)',
             }});
             zscoreSeries.createPriceLine({{
-                price: 0.0,
-                color: 'rgba(255,255,255,0.2)',
+                price: 50.0,
+                color: 'rgba(255,255,255,0.1)',
                 lineWidth: 1,
                 lineStyle: LightweightCharts.LineStyle.Dotted,
                 axisLabelVisible: true,
+                title: '+50%',
             }});
             zscoreSeries.createPriceLine({{
-                price: {z_low},
-                color: '{color_low}',
-                lineWidth: 1.5,
-                lineStyle: LightweightCharts.LineStyle.Dashed,
+                price: -50.0,
+                color: 'rgba(255,255,255,0.1)',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dotted,
                 axisLabelVisible: true,
-                title: 'Z-Down ({z_low:+.1f})',
+                title: '-50%',
             }});
             
             // 3. Create Percentile Chart
@@ -557,7 +558,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 if (!target) return;
                 
                 legPrice.innerHTML = `<span style="color:#ffffff">$${{target.close.toLocaleString('en-US', {{minimumFractionDigits:2, maximumFractionDigits:4}})}}</span> <span style="color:#64748b">(${{target.time}})</span>`;
-                legZscore.innerHTML = `<span style="color:#f39c12">${{target.zscore.toFixed(2)}} std</span>`;
+                legZscore.innerHTML = `<span style="color:#f39c12">${{target.net_pct_oi.toFixed(2)}}%</span>`;
                 legPercentile.innerHTML = `<span style="color:#3498db">${{target.percentile.toFixed(1)}}%</span>`;
             }}
             

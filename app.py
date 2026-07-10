@@ -524,12 +524,11 @@ app_mode = st.sidebar.radio("Навигация:", ["📊 Терминал COT",
 use_combined = False
 
 if app_mode == "📈 Интерактивный Дашборд":
-    st.title("📈 Интерактивный Дашборд и Главный Репорт")
-    st.markdown("Сюда стягивается вся информация, графики, и здесь же генерируется один отчетливый репорт с настроением фондов, банков и учетом новостей.")
+    st.title("📈 Интерактивный Дашборд")
+    st.markdown("Сюда стягивается вся ключевая рыночная информация: баланс ФРС, процентные ставки, денежная масса, распределение опционных объемов и графики COT.")
     
     from src.config import MARKETS
     from src.macro_data import DATA_DIR_MACRO
-    from src.agent import generate_dashboard_report, generate_holistic_report
     
     st.sidebar.markdown("### Настройки портфеля")
     popular_assets = ["BTC-USD", "SPY", "GC=F", "QQQ", "GLD", "ETH-USD", "EURUSD=X", "DX-Y.NYB", "^TNX"]
@@ -544,130 +543,93 @@ if app_mode == "📈 Интерактивный Дашборд":
     )
     user_assets_input = ", ".join(user_assets_list)
     
-    st.sidebar.markdown("### Доп. источники для агента")
-    extra_urls_input = st.sidebar.text_area("Срочные новости (URL, каждая с новой строки):", height=100)
-    
-    if st.button("🚀 СГЕНЕРИРОВАТЬ ДАШБОРД И ПОЛНЫЙ ОТЧЕТ", use_container_width=True, type="primary"):
-        with st.spinner("ИИ анализирует данные, собирает графики и читает новости... Это займет около минуты."):
-            json_data = generate_dashboard_report(user_assets_input, extra_urls_input, use_combined=use_combined)
-            try:
-                holistic_report = generate_holistic_report(user_assets_input, extra_urls_input, use_combined=use_combined)
-            except Exception as e:
-                holistic_report = f"Не удалось сгенерировать расширенный отчет: {e}"
+    # 1. MACRO: WALCL
+    st.markdown("### 🏦 Баланс ФРС (WALCL)")
+    try:
+        df_walcl = pd.read_csv(os.path.join(DATA_DIR_MACRO, "WALCL.csv"))
+        df_walcl['date'] = pd.to_datetime(df_walcl['date'])
+        from src.tv_charts import render_tv_macro_chart
+        tv_walcl = render_tv_macro_chart(df_walcl, 'date', 'value', '#2ecc71', 'WALCL', 300)
+        st.components.v1.html(tv_walcl, height=300)
+    except Exception as e:
+        st.warning(f"График WALCL недоступен: {e}")
+        
+    # 2. MACRO: M2
+    st.markdown("### 💵 Денежная масса (M2SL)")
+    try:
+        df_m2 = pd.read_csv(os.path.join(DATA_DIR_MACRO, "M2SL.csv"))
+        df_m2['date'] = pd.to_datetime(df_m2['date'])
+        from src.tv_charts import render_tv_macro_chart
+        tv_m2 = render_tv_macro_chart(df_m2, 'date', 'value', '#3498db', 'M2SL', 300)
+        st.components.v1.html(tv_m2, height=300)
+    except Exception as e:
+        st.warning(f"График M2 недоступен: {e}")
+        
+    # 3. MACRO: RATES
+    st.markdown("### 📈 Процентные ставки (10Y & 2Y Yield Spread)")
+    try:
+        df_10y = pd.read_csv(os.path.join(DATA_DIR_MACRO, "DGS10.csv"))
+        df_2y = pd.read_csv(os.path.join(DATA_DIR_MACRO, "DGS2.csv"))
+        df_10y['date'] = pd.to_datetime(df_10y['date'])
+        df_2y['date'] = pd.to_datetime(df_2y['date'])
+        merged_yields = pd.merge(df_10y, df_2y, on='date', suffixes=('_10y', '_2y'))
+        merged_yields['spread'] = merged_yields['value_10y'] - merged_yields['value_2y']
+        
+        from src.tv_charts import render_tv_macro_chart
+        tv_yield = render_tv_macro_chart(merged_yields, 'date', 'spread', '#e74c3c', '10Y-2Y Spread', 300)
+        st.components.v1.html(tv_yield, height=300)
+    except Exception as e:
+        st.warning(f"График ставок недоступен: {e}")
+        
+    # 4. COT Charts
+    st.markdown("### 🐋 Позиции Крупных Игроков (COT)")
+    parsed_assets = [a.strip() for a in user_assets_input.split(",") if a.strip()]
+    cot_displayed = False
+    for asset in parsed_assets:
+        if asset in MARKETS:
+            # We want to display the COT chart for the asset
+            df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
+            if not df_am.empty:
+                st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
+                html_am = draw_cot_chart(df_am.tail(52), asset, "Asset Manager")
+                st.components.v1.html(html_am, height=650)
+                cot_displayed = True
+                
+            df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
+            if not df_lf.empty:
+                st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
+                html_lf = draw_cot_chart(df_lf.tail(52), asset, "Leveraged Funds")
+                st.components.v1.html(html_lf, height=650)
+                cot_displayed = True
+                
+    if not cot_displayed:
+        st.info("Нет доступных данных COT для выбранных активов.")
+        
+    # 4.5. BTC GEX Уровни
+    if any(x in user_assets_input.upper() for x in ["BTC", "BITCOIN"]):
+        st.markdown("### 🌊 Уровни дилеров опционов BTC (GEX)")
+        try:
+            from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
+            gex_df, spot_price = get_aggregate_gex_data("All Exchanges")
+            gex_metrics = calculate_gex_metrics(gex_df, spot_price)
             
-            if "error" in json_data:
-                st.error(f"Ошибка при генерации JSON: {json_data['error']}")
-            else:
-                metrics = json_data.get("metrics", {})
-                
-                # 1. MACRO: WALCL
-                st.markdown("### 🏦 Баланс ФРС (WALCL)")
-                try:
-                    df_walcl = pd.read_csv(os.path.join(DATA_DIR_MACRO, "WALCL.csv"))
-                    df_walcl['date'] = pd.to_datetime(df_walcl['date'])
-                    from src.tv_charts import render_tv_macro_chart
-                    tv_walcl = render_tv_macro_chart(df_walcl, 'date', 'value', '#2ecc71', 'WALCL', 300)
-                    st.components.v1.html(tv_walcl, height=300)
-                except:
-                    st.warning("График WALCL недоступен. Нажмите 'Обновить Макро-Данные' на вкладке Макро.")
-                st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('WALCL', 'Нет комментария')}</div>", unsafe_allow_html=True)
-                
-                # 2. MACRO: M2
-                st.markdown("### 💵 Денежная масса (M2SL)")
-                try:
-                    df_m2 = pd.read_csv(os.path.join(DATA_DIR_MACRO, "M2SL.csv"))
-                    df_m2['date'] = pd.to_datetime(df_m2['date'])
-                    from src.tv_charts import render_tv_macro_chart
-                    tv_m2 = render_tv_macro_chart(df_m2, 'date', 'value', '#3498db', 'M2SL', 300)
-                    st.components.v1.html(tv_m2, height=300)
-                except:
-                    st.warning("График M2 недоступен.")
-                st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('M2SL', 'Нет комментария')}</div>", unsafe_allow_html=True)
-                
-                # 3. MACRO: RATES
-                st.markdown("### 📈 Процентные ставки (10Y & 2Y)")
-                try:
-                    df_10y = pd.read_csv(os.path.join(DATA_DIR_MACRO, "DGS10.csv"))
-                    df_2y = pd.read_csv(os.path.join(DATA_DIR_MACRO, "DGS2.csv"))
-                    df_10y['date'] = pd.to_datetime(df_10y['date'])
-                    df_2y['date'] = pd.to_datetime(df_2y['date'])
-                    merged_yields = pd.merge(df_10y, df_2y, on='date', suffixes=('_10y', '_2y'))
-                    merged_yields['spread'] = merged_yields['value_10y'] - merged_yields['value_2y']
-                    
-                    from src.tv_charts import render_tv_macro_chart
-                    tv_yield = render_tv_macro_chart(merged_yields, 'date', 'spread', '#e74c3c', '10Y-2Y Spread', 300)
-                    st.components.v1.html(tv_yield, height=300)
-                except:
-                    st.warning("График ставок недоступен.")
-                st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('RATES', 'Нет комментария')}</div>", unsafe_allow_html=True)
-                
-                # 4. COT
-                st.markdown("### 🐋 Позиции Крупных Игроков (COT)")
-                parsed_assets = [a.strip() for a in user_assets_input.split(",") if a.strip()]
-                for asset in parsed_assets:
-                    if asset in MARKETS:
-                        try:
-                            df_am = get_market_analysis(asset, "Asset Manager", use_combined=use_combined)
-                            if not df_am.empty:
-                                st.markdown(f"**{asset} (Asset Managers - Институционалы)**")
-                                html_am = draw_cot_chart(df_am.tail(52), asset, "Asset Manager")
-                                st.components.v1.html(html_am, height=650)
-                                
-                            df_lf = get_market_analysis(asset, "Leveraged Funds", use_combined=use_combined)
-                            if not df_lf.empty:
-                                st.markdown(f"**{asset} (Leveraged Funds - Спекулянты)**")
-                                html_lf = draw_cot_chart(df_lf.tail(52), asset, "Leveraged Funds")
-                                st.components.v1.html(html_lf, height=650)
-
-                        except:
-                            pass
-                st.markdown(f"<div class='interp-card' style='margin-top: 0;'><div class='interp-label'>Вывод ИИ</div>{metrics.get('COT', 'Нет комментария')}</div>", unsafe_allow_html=True)
-                
-                # 4.5. BTC GEX Уровни (for Bitcoin analysis)
-                if any(x in user_assets_input.upper() for x in ["BTC", "BITCOIN"]):
-                    st.markdown("### 🌊 Уровни дилеров опционов BTC (GEX)")
-                    try:
-                        from src.gex_engine import get_aggregate_gex_data, calculate_gex_metrics
-                        gex_df, spot_price = get_aggregate_gex_data("All Exchanges")
-                        gex_metrics = calculate_gex_metrics(gex_df, spot_price)
-                        
-                        g_flip = gex_metrics.get("gamma_flip")
-                        c_wall = gex_metrics.get("call_wall")
-                        p_wall = gex_metrics.get("put_wall")
-                        total_gex = gex_metrics.get("total_gex", 0)
-                        
-                        col_g1, col_g2, col_g3, col_g4 = st.columns(4)
-                        with col_g1:
-                            st.metric("Цена BTC (Spot)", f"${spot_price:,.2f}")
-                        with col_g2:
-                            st.metric("Net GEX (BTC)", f"${total_gex/1_000_000.0:+.2f}M", delta="🟢 Positive" if total_gex >= 0 else "🔴 Negative")
-                        with col_g3:
-                            st.metric("Точка Gamma Flip", f"${g_flip:,.0f}" if g_flip else "Н/Д")
-                        with col_g4:
-                            st.metric("Стены Call / Put", f"${c_wall:,.0f} / ${p_wall:,.0f}" if (c_wall and p_wall) else "Н/Д")
-                    except Exception as e:
-                        st.warning(f"Данные GEX для BTC временно недоступны: {e}")
-                
-                # 5. OPTIONS & ETFS
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("### 🎲 Опционы")
-                    st.markdown(f"<div class='interp-card' style='margin-top: 0;'>{metrics.get('OPTIONS', 'Нет комментария').replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
-                with col2:
-                    st.markdown("### 💸 ETF Потоки")
-                    st.markdown(f"<div class='interp-card' style='margin-top: 0;'>{metrics.get('ETFS', 'Нет комментария').replace(chr(10), '<br>')}</div>", unsafe_allow_html=True)
-                
-                # 6. CONCLUSION
-                st.markdown("---")
-                st.markdown("## 🧠 КРАТКОЕ РЕЗЮМЕ")
-                st.markdown(f"<div class='interp-card' style='border-color: #3498db; background-color: rgba(52, 152, 219, 0.05);'><div style='font-size: 1.1em; line-height: 1.6;'>{json_data.get('conclusion', 'Нет итогового отчета.').replace(chr(10), '<br>')}</div></div>", unsafe_allow_html=True)
-                
-                st.markdown("---")
-                st.markdown("## 📜 РАЗВЕРНУТЫЙ МАКРО-ОТЧЕТ КОТА")
-                st.markdown("<div class='interp-card'>", unsafe_allow_html=True)
-                st.markdown(holistic_report)
-                st.markdown("</div>", unsafe_allow_html=True)
-    
+            g_flip = gex_metrics.get("gamma_flip")
+            c_wall = gex_metrics.get("call_wall")
+            p_wall = gex_metrics.get("put_wall")
+            total_gex = gex_metrics.get("total_gex", 0)
+            
+            col_g1, col_g2, col_g3, col_g4 = st.columns(4)
+            with col_g1:
+                st.metric("Цена BTC (Spot)", f"${spot_price:,.2f}")
+            with col_g2:
+                st.metric("Net GEX (BTC)", f"${total_gex/1_000_000.0:+.2f}M", delta="🟢 Positive" if total_gex >= 0 else "🔴 Negative")
+            with col_g3:
+                st.metric("Точка Gamma Flip", f"${g_flip:,.0f}" if g_flip else "Н/Д")
+            with col_g4:
+                st.metric("Стены Call / Put", f"${c_wall:,.0f} / ${p_wall:,.0f}" if (c_wall and p_wall) else "Н/Д")
+        except Exception as e:
+            st.warning(f"Данные GEX для BTC временно недоступны: {e}")
+            
     st.stop()
 
 elif app_mode == "📖 Паспорт Терминала":
@@ -1364,11 +1326,6 @@ else:
     with st.expander("📊 Показать полную статистику исторических бэктестов (Все сигналы группы)", expanded=True):
         display_backtest_stats_table(df, selected_market, tff_participant)
 
-    # 4. Advanced Holistic AI Report
-    st.markdown(f"### 🤖 Аналитический репорт ИИ")
-
-    from src.analytics import generate_holistic_report
-    holistic_report = generate_holistic_report(selected_market, use_combined=use_combined)
-    st.info(holistic_report)
+    
 
 # Force reload 1
