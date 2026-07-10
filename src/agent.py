@@ -7,6 +7,7 @@ import pdfplumber
 import yfinance as yf
 from google import genai
 from dotenv import load_dotenv
+from src import gemini_utils
 
 load_dotenv()
 
@@ -134,7 +135,7 @@ def get_gemini_client():
     if not api_key:
         raise ValueError(f"API ключ GEMINI_API_KEY не найден в файле .env или Streamlit Secrets")
         
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options={"timeout": 45.0})
 
 def fetch_url_text(url):
     try:
@@ -240,7 +241,8 @@ def absorb_knowledge(new_text, source_name):
         new_text=new_text
     )
     
-    response = client.models.generate_content(
+    response = gemini_utils.generate_content_with_retry(
+        client=client,
         model='gemini-2.5-flash',
         contents=prompt
     )
@@ -300,7 +302,8 @@ SOURCE CONTENT:
 Return the conclusion in beautifully formatted Markdown.
 """
     
-    response = client.models.generate_content(
+    response = gemini_utils.generate_content_with_retry(
+        client=client,
         model='gemini-2.5-flash',
         contents=prompt
     )
@@ -337,20 +340,11 @@ def generate_holistic_report(assets_string, extra_urls_string="", use_combined=T
         data_basket=data_basket
     )
     
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-pro', # Use pro for deeper holistic reports
-            contents=prompt
-        )
-    except Exception as e:
-        e_str = str(e).lower()
-        if "429" in e_str or "quota" in e_str or "resource_exhausted" in e_str or "503" in e_str or "unavailable" in e_str:
-            response = client.models.generate_content(
-                model='gemini-2.5-flash', # Fallback to flash
-                contents=prompt
-            )
-        else:
-            raise e
+    response = gemini_utils.generate_content_with_retry(
+        client=client,
+        model='gemini-2.5-pro',
+        contents=prompt
+    )
             
     final_report_full = response.text
     
@@ -423,26 +417,15 @@ def generate_dashboard_report(assets_string, extra_urls_string="", use_combined=
     )
     
     try:
-        response = client.models.generate_content(
+        config_options = {'response_mime_type': 'application/json'}
+        response = gemini_utils.generate_content_with_retry(
+            client=client,
             model='gemini-2.5-pro',
             contents=prompt,
-            config={'response_mime_type': 'application/json'}
+            config=config_options
         )
         return json.loads(response.text)
     except Exception as e:
-        e_str = str(e).lower()
-        if "429" in e_str or "quota" in e_str or "resource_exhausted" in e_str or "503" in e_str or "unavailable" in e_str:
-            try:
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt,
-                    config={'response_mime_type': 'application/json'}
-                )
-                return json.loads(response.text)
-            except Exception as inner_e:
-                logging.error(f"JSON Fallback Generation error: {inner_e}")
-                return {"error": f"Fallback failed: {inner_e}"}
-        else:
-            logging.error(f"JSON Generation error: {e}")
-            return {"error": str(e)}
+        logging.error(f"JSON Generation error after retries: {e}")
+        return {"error": str(e)}
 

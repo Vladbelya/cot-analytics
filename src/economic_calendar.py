@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import streamlit as st
 import json
 import os
+from src import gemini_utils
 
 @st.cache_data(ttl=3600)
 def fetch_economic_calendar():
@@ -75,7 +76,8 @@ def get_event_description(event_title):
     try:
         client = get_gemini_client()
         prompt = f"Коротко объясни (в 1-2 предложениях на русском языке), что означает макроэкономическое событие '{event_title}' и на что оно влияет."
-        response = client.models.generate_content(
+        response = gemini_utils.generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt
         )
@@ -113,7 +115,8 @@ def analyze_calendar_events(events):
     """
     
     try:
-        response = client.models.generate_content(
+        response = gemini_utils.generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt
         )

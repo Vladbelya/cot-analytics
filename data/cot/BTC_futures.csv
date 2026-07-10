@@ -1,4 +1,6 @@
 report_date,open_interest,lev_money_positions_long,lev_money_positions_short,lev_money_positions_spread,asset_mgr_positions_long,asset_mgr_positions_short,asset_mgr_positions_spread,dealer_positions_long_all,dealer_positions_short_all,dealer_positions_spread_all,nonrept_positions_long_all,nonrept_positions_short_all
+2026-07-07,18832,4406,11123,1219,4790,2405,129,6718,1939,544,821,1104
+2026-06-30,18336,5408,10721,436,4754,2754,275,6260,1735,290,758,992
 2026-06-23,20554,4925,11055,2352,5202,2617,505,6075,2044,343,935,1206
 2026-06-16,21125,6077,12684,1463,5433,2926,285,6026,2016,399,1140,1070
 2026-06-09,19776,6153,12148,721,5330,2442,469,5679,1990,293,1009,1121

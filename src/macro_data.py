@@ -108,6 +108,7 @@ def get_macro_summary():
 def update_macro_ai_analysis():
     """Generates an AI analysis of the current macro metrics and saves it."""
     from src.agent import get_gemini_client
+    from src import gemini_utils
     try:
         client = get_gemini_client()
         raw_metrics = get_macro_summary()
@@ -127,7 +128,8 @@ INSTRUCTIONS:
    - Bonds / Safe Havens
 5. Format beautifully with markdown. Provide a clear "ВЫВОД" (Conclusion)."""
         
-        response = client.models.generate_content(
+        response = gemini_utils.generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash',
             contents=prompt
         )
