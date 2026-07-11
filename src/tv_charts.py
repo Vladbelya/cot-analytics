@@ -311,16 +311,12 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 overflow: hidden;
             }}
             #wrapper-price {{
-                flex: 2;
-                min-height: 240px;
-            }}
-            #wrapper-zscore {{
-                flex: 1.2;
-                min-height: 150px;
+                flex: 2.2;
+                min-height: 280px;
             }}
             #wrapper-percentile {{
-                flex: 1.2;
-                min-height: 150px;
+                flex: 1.8;
+                min-height: 220px;
             }}
             .chart-legend {{
                 position: absolute;
@@ -353,13 +349,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 </div>
                 <div id="chart-price" style="width:100%; height:100%;"></div>
             </div>
-            <div id="wrapper-zscore" class="chart-wrapper">
-                <div class="chart-legend">
-                    <span class="legend-title" style="color: #f39c12">Баланс позиций Net % OI (Групповой)</span>
-                    <span id="legend-zscore">Ожидание...</span>
-                </div>
-                <div id="chart-zscore" style="width:100%; height:100%;"></div>
-            </div>
+
             <div id="wrapper-percentile" class="chart-wrapper">
                 <div class="chart-legend">
                     <span class="legend-title" style="color: #3498db">Перцентиль позиций (52н)</span>
@@ -422,42 +412,7 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
             const priceData = data.map(d => ({{ time: d.time, value: d.close }}));
             priceSeries.setData(priceData);
             
-            // 2. Create Net % OI Chart
-            const zscoreWrapper = document.getElementById('wrapper-zscore');
-            const zscoreChart = LightweightCharts.createChart(document.getElementById('chart-zscore'), getOptions('#0b0f19'));
-            const zscoreSeries = zscoreChart.addLineSeries({{
-                color: '#f39c12',
-                lineWidth: 2,
-            }});
-            
-            const zscoreData = data.map(d => ({{ time: d.time, value: d.net_pct_oi }}));
-            zscoreSeries.setData(zscoreData);
-            
-            // Net % OI levels
-            zscoreSeries.createPriceLine({{
-                price: 0.0,
-                color: 'rgba(255,255,255,0.4)',
-                lineWidth: 1.5,
-                lineStyle: LightweightCharts.LineStyle.Dashed,
-                axisLabelVisible: true,
-                title: 'Нейтрально (0%)',
-            }});
-            zscoreSeries.createPriceLine({{
-                price: 50.0,
-                color: 'rgba(255,255,255,0.1)',
-                lineWidth: 1,
-                lineStyle: LightweightCharts.LineStyle.Dotted,
-                axisLabelVisible: true,
-                title: '+50%',
-            }});
-            zscoreSeries.createPriceLine({{
-                price: -50.0,
-                color: 'rgba(255,255,255,0.1)',
-                lineWidth: 1,
-                lineStyle: LightweightCharts.LineStyle.Dotted,
-                axisLabelVisible: true,
-                title: '-50%',
-            }});
+
             
             // 3. Create Percentile Chart
             const pctWrapper = document.getElementById('wrapper-percentile');
@@ -513,9 +468,8 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 }});
             }};
             
-            syncTimescales(priceChart, [zscoreChart, pctChart]);
-            syncTimescales(zscoreChart, [priceChart, pctChart]);
-            syncTimescales(pctChart, [priceChart, zscoreChart]);
+            syncTimescales(priceChart, [pctChart]);
+            syncTimescales(pctChart, [priceChart]);
             
             // Synchronize crosshairs
             const syncCrosshair = (srcChart, destCharts) => {{
@@ -539,13 +493,11 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 }});
             }};
             
-            syncCrosshair(priceChart, [zscoreChart, pctChart]);
-            syncCrosshair(zscoreChart, [priceChart, pctChart]);
-            syncCrosshair(pctChart, [priceChart, zscoreChart]);
+            syncCrosshair(priceChart, [pctChart]);
+            syncCrosshair(pctChart, [priceChart]);
             
             // Legends
             const legPrice = document.getElementById('legend-price');
-            const legZscore = document.getElementById('legend-zscore');
             const legPercentile = document.getElementById('legend-percentile');
             
             function updateLegends(time) {{
@@ -558,7 +510,6 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
                 if (!target) return;
                 
                 legPrice.innerHTML = `<span style="color:#ffffff">$${{target.close.toLocaleString('en-US', {{minimumFractionDigits:2, maximumFractionDigits:4}})}}</span> <span style="color:#64748b">(${{target.time}})</span>`;
-                legZscore.innerHTML = `<span style="color:#f39c12">${{target.net_pct_oi.toFixed(2)}}%</span>`;
                 legPercentile.innerHTML = `<span style="color:#3498db">${{target.percentile.toFixed(1)}}%</span>`;
             }}
             
@@ -566,7 +517,6 @@ def render_tv_cot_chart(df_plot, market_name, participant_name, z_up, z_low, pct
             
             function resizeAll() {{
                 priceChart.resize(priceWrapper.clientWidth, priceWrapper.clientHeight);
-                zscoreChart.resize(zscoreWrapper.clientWidth, zscoreWrapper.clientHeight);
                 pctChart.resize(pctWrapper.clientWidth, pctWrapper.clientHeight);
             }}
             
@@ -589,7 +539,7 @@ def render_tv_flows_chart(df_plot, market_name):
         
         long_val = float(row['long_pct_oi']) if not pd.isna(row['long_pct_oi']) else 0.0
         short_val = float(row['short_pct_oi']) if not pd.isna(row['short_pct_oi']) else 0.0
-        net_val = float(row['net_pct_oi']) if not pd.isna(row['net_pct_oi']) else 0.0
+        net_val = float(row['net']) if not pd.isna(row['net']) else 0.0
         
         chart_data.append({
             'time': date_str,
@@ -692,7 +642,7 @@ def render_tv_flows_chart(df_plot, market_name):
             </div>
             <div id="wrapper-net" class="chart-wrapper">
                 <div class="chart-legend">
-                    <span class="legend-title" style="color: #f39c12">Чистый баланс Net % OI</span>
+                    <span class="legend-title" style="color: #f39c12">Чистая позиция (Net OI в контр.)</span>
                     <span id="legend-net">Ожидание...</span>
                 </div>
                 <div id="chart-net" style="width:100%; height:100%;"></div>
@@ -793,6 +743,7 @@ def render_tv_flows_chart(df_plot, market_name):
                 bottomFillColor2: 'rgba(239, 68, 68, 0.3)',
                 lineWidth: 2,
                 relativeGradient: true,
+                priceFormat: {{ type: 'volume' }},
             }});
             
             const netData = data.map(d => ({{ time: d.time, value: d.net_val }}));
@@ -881,7 +832,7 @@ def render_tv_flows_chart(df_plot, market_name):
                 legPrice.innerHTML = `<span style="color:#ffffff">$${{target.close.toLocaleString('en-US', {{minimumFractionDigits:2, maximumFractionDigits:4}})}}</span> <span style="color:#64748b">(${{target.time}})</span>`;
                 legLong.innerHTML = `<span style="color:#10b981">${{target.long_val.toFixed(2)}}%</span>`;
                 legShort.innerHTML = `<span style="color:#ef4444">${{target.short_val.toFixed(2)}}%</span>`;
-                legNet.innerHTML = `<span style="color:#f39c12">${{target.net_val >= 0 ? '+' : ''}}${{target.net_val.toFixed(2)}}%</span>`;
+                legNet.innerHTML = `<span style="color:#f39c12">${{target.net_val >= 0 ? '+' : ''}}${{target.net_val.toLocaleString('en-US')}} контр.</span>`;
             }}
             
             updateLegends(null);

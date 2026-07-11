@@ -1314,7 +1314,7 @@ else:
 
 
     
-    st.markdown("### 🌊 Осциллятор Настроений (COT Index Net & Net % OI)")
+    st.markdown("### 🌊 Настроения участников (Long, Short, Net OI)")
     html_content2 = draw_flows_chart(plot_df, selected_market, chart_height=750)
     st.components.v1.html(html_content2, height=750)
     
