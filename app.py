@@ -499,7 +499,7 @@ def draw_cot_chart(plot_df, market_name, participant_name, chart_height=650):
         color_low = "#10b981" if rule_type == "contrarian" else "#ef4444"
     except Exception:
         z_up, z_low = 2.0, -2.0
-        pct_up, pct_low = 80.0, 20.0
+        pct_up, pct_low = 85.0, 15.0
         color_up, color_low = "#ef4444", "#10b981"
         
     return render_tv_cot_chart(
@@ -1266,9 +1266,9 @@ else:
     
     if pos_pct >= 95.0 and pos_z >= 2.0:
         pos_state = "🔴 Перегрев лонгов"
-    elif pos_pct >= 80.0 or pos_z >= 1.5:
+    elif pos_pct >= 85.0 or pos_z >= 1.5:
         pos_state = "🟡 Перекупленность"
-    elif pos_pct <= 20.0 or pos_z <= -1.5:
+    elif pos_pct <= 15.0 or pos_z <= -1.5:
         pos_state = "🟢 Перепроданность"
     else:
         pos_state = "⚪ Нейтрально"
@@ -1297,7 +1297,7 @@ else:
         st.metric(
             label="Состояние позиций (1г)",
             value=pos_state,
-            delta="Границы: 80% / 20%"
+            delta="Границы: 85% / 15%"
         )
 
 

@@ -9,8 +9,8 @@ def load_backtest_thresholds(market_name, participant_name):
     defaults = {
         "zscore_upper": 1.5,
         "zscore_lower": -1.5,
-        "percentile_upper": 80.0,
-        "percentile_lower": 20.0,
+        "percentile_upper": 85.0,
+        "percentile_lower": 15.0,
         "rule_type": "follow" if participant_name in ["Asset Manager", "Dealer"] else "contrarian"
     }
     
@@ -382,8 +382,8 @@ def generate_holistic_report(market_name, use_combined=False):
     rt_idx = latest_rt["cot_index_net_pct_oi_156w"]
     
     # Asset Managers (Institutional Investors)
-    am_is_bullish = am_idx >= 80
-    am_is_bearish = am_idx <= 20
+    am_is_bullish = am_idx >= 85
+    am_is_bearish = am_idx <= 15
     if am_is_bullish:
         am_action = f"Институциональные инвесторы настроены крайне по-бычьи (COT Index Net % OI 3г = {am_idx:.1f}%), удерживая крупный чистый лонг."
     elif am_is_bearish:
@@ -392,8 +392,8 @@ def generate_holistic_report(market_name, use_combined=False):
         am_action = f"Институциональные инвесторы занимают умеренную позицию (COT Index Net % OI 3г = {am_idx:.1f}%), не совершая резких перестроений."
         
     # Leveraged Funds (Large Speculators/Hedge Funds)
-    lf_is_bullish = lf_idx >= 80
-    lf_is_bearish = lf_idx <= 20
+    lf_is_bullish = lf_idx >= 85
+    lf_is_bearish = lf_idx <= 15
     if lf_is_bullish:
         lf_action = f"Крупные спекулянты (Хедж-фонды/CTA) перегружены покупками (COT Index Net % OI 3г = {lf_idx:.1f}%), что исторически несет риск лонг-сквиза."
     elif lf_is_bearish:
@@ -405,8 +405,8 @@ def generate_holistic_report(market_name, use_combined=False):
     dl_action = f"Дилеры / Банки (Маркет-мейкеры) удерживают чистый индекс на уровне {dl_idx:.1f}%."
     
     # Retail (Crowd)
-    rt_is_bullish = rt_idx >= 80
-    rt_is_bearish = rt_idx <= 20
+    rt_is_bullish = rt_idx >= 85
+    rt_is_bearish = rt_idx <= 15
     if rt_is_bullish:
         rt_action = f"Мелкие спекулянты (Толпа / Ритейл) поддались эйфории и зашли в экстремальный лонг (COT Index Net % OI 3г = {rt_idx:.1f}%)."
     elif rt_is_bearish:
@@ -466,9 +466,9 @@ def generate_holistic_report(market_name, use_combined=False):
     # 3. Вердикт (Механика)
     verdict = "**🔮 Итоговый вердикт (Механика):** Ситуация на рынке сбалансированная. Явных перекосов между трендовыми хедж-фондами и институционалами не наблюдается."
     
-    if lf_is_bullish and (am_is_bearish or dl_idx <= 20):
+    if lf_is_bullish and (am_is_bearish or dl_idx <= 15):
         verdict = "**🔮 Итоговый вердикт (Риск коррекции / Long Squeeze):** Медвежий сетап. Риск полностью перешел к трендовым хедж-фондам (спекулянтам), которые загружены покупками на максимумах, в то время как маркет-мейкеры и долгосрочные инвесторы сокращают лонги. Отсутствие спекулятивного топлива для дальнейшего роста может спровоцировать волну ликвидаций и обвал."
-    elif lf_is_bearish and (am_is_bullish or dl_idx >= 80):
+    elif lf_is_bearish and (am_is_bullish or dl_idx >= 85):
         verdict = "**🔮 Итоговый вердикт (Потенциал роста / Short Squeeze):** Бычий сетап. Спекулянты перегружены шортами на минимумах, в то время как умные деньги (дилеры и институционалы) активно выкупают актив. Ликвидность на продажу исчерпана, любое восходящее движение вызовет закрытие стопов медведей и резкий импульсный рост цены вверх."
     elif lf_is_bullish and rt_is_bullish:
         verdict = "**🔮 Итоговый вердикт (Эйфория / Перегрев):** Рынок перегрет совместными покупками хедж-фондов и мелких спекулянтов. Тренд силен, но близок к истощению, рекомендуется проявлять осторожность."

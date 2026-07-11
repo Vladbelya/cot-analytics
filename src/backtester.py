@@ -39,30 +39,30 @@ SIGNAL_DEFS = {
     
     # 3. Percentile (COT Index) 3-Year (156w)
     "percentile_3y_bullish": {
-        "name": "Percentile 3г: Перепроданность (≤20%)",
+        "name": "Percentile 3г: Перепроданность (≤15%)",
         "icon": "🟢",
         "direction": "bullish",
-        "desc": "COT Index Net % OI (3г) ≤ 20% — позиция участников близка к историческому минимуму.",
+        "desc": "COT Index Net % OI (3г) ≤ 15% — позиция участников близка к историческому минимуму.",
     },
     "percentile_3y_bearish": {
-        "name": "Percentile 3г: Перекупленность (≥80%)",
+        "name": "Percentile 3г: Перекупленность (≥85%)",
         "icon": "🔴",
         "direction": "bearish",
-        "desc": "COT Index Net % OI (3г) ≥ 80% — позиция участников близка к историческому максимуму.",
+        "desc": "COT Index Net % OI (3г) ≥ 85% — позиция участников близка к историческому максимуму.",
     },
     
     # 4. Percentile (COT Index) 1-Year (52w)
     "percentile_1y_bullish": {
-        "name": "Percentile 1г: Перепроданность (≤20%)",
+        "name": "Percentile 1г: Перепроданность (≤15%)",
         "icon": "🟢",
         "direction": "bullish",
-        "desc": "COT Index Net % OI (1г) ≤ 20% — позиция участников на годовом минимуме.",
+        "desc": "COT Index Net % OI (1г) ≤ 15% — позиция участников на годовом минимуме.",
     },
     "percentile_1y_bearish": {
-        "name": "Percentile 1г: Перекупленность (≥80%)",
+        "name": "Percentile 1г: Перекупленность (≥85%)",
         "icon": "🔴",
         "direction": "bearish",
-        "desc": "COT Index Net % OI (1г) ≥ 80% — позиция участников на годовом максимуме.",
+        "desc": "COT Index Net % OI (1г) ≥ 85% — позиция участников на годовом максимуме.",
     },
     
     # 5. Divergence (4-week)
@@ -100,12 +100,12 @@ def detect_signals_series(df):
     signals["zscore_bearish"] = df["net_pct_oi_zscore_156w"] >= 1.5
 
     # 3. Percentiles 3-Year (156w Net % OI COT Index)
-    signals["percentile_3y_bullish"] = df["cot_index_net_pct_oi_156w"] <= 20.0
-    signals["percentile_3y_bearish"] = df["cot_index_net_pct_oi_156w"] >= 80.0
+    signals["percentile_3y_bullish"] = df["cot_index_net_pct_oi_156w"] <= 15.0
+    signals["percentile_3y_bearish"] = df["cot_index_net_pct_oi_156w"] >= 85.0
 
     # 4. Percentiles 1-Year (52w Net % OI COT Index)
-    signals["percentile_1y_bullish"] = df["cot_index_net_pct_oi_52w"] <= 20.0
-    signals["percentile_1y_bearish"] = df["cot_index_net_pct_oi_52w"] >= 80.0
+    signals["percentile_1y_bullish"] = df["cot_index_net_pct_oi_52w"] <= 15.0
+    signals["percentile_1y_bearish"] = df["cot_index_net_pct_oi_52w"] >= 85.0
 
     # 5. Divergence (4-week)
     signals["bullish_divergence"] = df["signal_bullish_div_4w"]
@@ -452,25 +452,25 @@ def _build_signal_reasoning(entry, df, participant_name="Участники"):
         cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index Net % OI (3г) достиг {cot_idx:.1f}%, "
-            f"что означает нахождение чистой позиции в нижней 20% зоне исторического диапазона."
+            f"что означает нахождение чистой позиции в нижней 15% зоне исторического диапазона."
         )
     elif key == "percentile_3y_bearish":
         cot_idx = latest.get("cot_index_net_pct_oi_156w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index Net % OI (3г) достиг {cot_idx:.1f}%, "
-            f"что означает нахождение чистой позиции в верхней 80% зоне исторического диапазона."
+            f"что означает нахождение чистой позиции в верхней 85% зоне исторического диапазона."
         )
     elif key == "percentile_1y_bullish":
         cot_idx = latest.get("cot_index_net_pct_oi_52w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index Net % OI (1г) достиг {cot_idx:.1f}%, "
-            f"что означает нахождение чистой позиции в нижней 20% зоне 1-годового диапазона."
+            f"что означает нахождение чистой позиции в нижней 15% зоне 1-годового диапазона."
         )
     elif key == "percentile_1y_bearish":
         cot_idx = latest.get("cot_index_net_pct_oi_52w", 0)
         parts.append(
             f"Сигнал «{name}»: COT Index Net % OI (1г) достиг {cot_idx:.1f}%, "
-            f"что означает нахождение чистой позиции в верхней 80% зоне 1-годового диапазона."
+            f"что означает нахождение чистой позиции в верхней 85% зоне 1-годового диапазона."
         )
     elif key == "bullish_divergence":
         parts.append(
